@@ -8,6 +8,7 @@ use crate::ext::{GenericBoundKey, ToPath};
 #[derive(Clone, Default)]
 pub struct ImportResolver {
     pub inner: IndexMap<ScopeChain, IndexMap<Path, Path>>,
+    pub globs: IndexMap<ScopeChain, Vec<Path>>,
 }
 
 impl ImportResolver {
@@ -43,9 +44,10 @@ impl ImportResolver {
             UseTree::Group(UseGroup { items, .. }) =>
                 items.iter()
                     .for_each(|use_tree| self.fold_import_tree(scope, use_tree, current_path.clone())),
-            _ => {
-                // For a glob import, we can't determine the full path statically
-                // Just ignore them for now
+            UseTree::Glob(..) => {
+                // Record a glob base path for this scope; names are resolved lazily during refinement.
+                let base = Path { leading_colon: None, segments: Punctuated::from_iter(current_path.into_iter().map(PathSegment::from)) };
+                self.globs.entry(scope.clone()).or_default().push(base);
             }
         }
     }
@@ -91,4 +93,7 @@ impl ImportResolver {
     }
 
 
+    pub fn maybe_scope_globs(&self, scope: &ScopeChain) -> Option<&Vec<Path>> {
+        self.globs.get(scope)
+    }
 }

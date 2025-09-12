@@ -6,7 +6,7 @@ publish = false
 
 [dependencies]
 anyhow = "1.0.95"
-dashcore = { git = "https://github.com/dashpay/rust-dashcore", features = ["std", "secp-recovery", "rand", "signer", "serde", "apple"], default-features = false, branch = "feat/ferment" }
+dashcore = { git = "https://github.com/pankcuf/rust-dashcore", features = ["std", "secp-recovery", "rand", "signer", "serde", "apple"], default-features = false, branch = "feat/ferment" }
 
 ferment.workspace = true
 ferment-macro.workspace = true
@@ -14,9 +14,9 @@ ferment-macro.workspace = true
 example-simple = { path = "../simple" }
 example-entry-point = { path = "../entry-point" }
 
-dpp = { git = "https://github.com/dashpay/platform", branch = "test/ferment", package = "dpp", default-features = false, features = ["apple", "dash-sdk-features"] }
-platform-value = { git = "https://github.com/dashpay/platform", branch = "test/ferment", package = "platform-value", features = ["apple"] }
-platform-version = { git = "https://github.com/dashpay/platform", branch = "test/ferment", package = "platform-version", features = ["apple"] }
+dpp = { git = "https://github.com/pankcuf/platform", branch = "test/ferment", default-features = false, features = ["apple", "dash-sdk-features"] }
+platform-value = { git = "https://github.com/pankcuf/platform", branch = "test/ferment", features = ["apple"] }
+platform-version = { git = "https://github.com/pankcuf/platform", branch = "test/ferment", features = ["apple"] }
 versioned-feature-core = "1.0.0"
 
 indexmap = "2.7.0"

@@ -8,7 +8,7 @@ use crate::composable::{TraitModelPart1, TypeModel, TypeModeled};
 use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::{CustomResolver, GenericResolver, ImportResolver, ScopeChain, ScopeResolver, ScopeSearchKey, TraitsResolver, TypeChain};
 use crate::kind::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, MixinKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, TypeModelKind};
-use crate::ext::{AsType, GenericBoundKey, RefineInScope, Split, ToPath, ToType};
+use crate::ext::{AsType, GenericBoundKey, RefineInScope, Split, ToPath, ToType, CrateBased};
 use crate::formatter::format_global_context;
 
 #[derive(Clone)]
@@ -279,8 +279,23 @@ impl GlobalContext {
         self.imports
             .inner
             .keys()
-            .find(|scope_chain| path.eq(scope_chain.self_path_ref()))
+            .find(|scope_chain| {
+                // Normalize `crate::...` to the actual crate ident for comparison
+                let normalized = path.clone().crate_named(&scope_chain.crate_ident_as_path());
+                normalized.eq(scope_chain.self_path_ref())
+            })
 
+    }
+
+    pub fn maybe_globs_scope_ref(&self, path: &Path) -> Option<&ScopeChain> {
+        self.imports
+            .globs
+            .keys()
+            .find(|scope_chain| {
+                // Normalize `crate::...` to the actual crate ident for comparison
+                let normalized = path.clone().crate_named(&scope_chain.crate_ident_as_path());
+                normalized.eq(scope_chain.self_path_ref())
+            })
     }
 
     pub fn maybe_import_path_ref(&self, scope: &ScopeChain, path: &GenericBoundKey) -> Option<&Path> {
@@ -292,6 +307,15 @@ impl GlobalContext {
             .and_then(|reexport_scope| {
                 let path = GenericBoundKey::ident(&scope_path_last_segment.ident);
                 self.maybe_import_path_ref(reexport_scope, &path).map(|import| (reexport_scope, import))
+            })
+    }
+
+    pub fn maybe_import_glob_path_owned(&self, _scope_path_last_segment: &PathSegment, scope_path_candidate: &Path) -> Option<(&ScopeChain, Vec<Path>)> {
+        self.maybe_globs_scope_ref(scope_path_candidate)
+            .and_then(|reexport_scope| {
+                self.imports
+                    .maybe_scope_globs(reexport_scope)
+                    .map(|bases| (reexport_scope, bases.clone()))
             })
     }
 
@@ -401,5 +425,3 @@ impl GlobalContext {
         self.scope_register.maybe_object_ref_by_value(search_key)
     }
 }
-
-

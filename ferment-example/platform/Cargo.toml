@@ -12,18 +12,21 @@ publish = false
 
 [dependencies]
 anyhow = { version = "1.0.75" }
-dashcore = { git = "https://github.com/dashpay/rust-dashcore", features = ["std", "secp-recovery", "rand", "signer", "serde", "apple"], default-features = false, branch = "feat/ferment" }
+dashcore = { git = "https://github.com/pankcuf/rust-dashcore", default-features = false, features = ["apple"], branch = "feat/ferment" }
 ferment.workspace = true
 ferment-macro.workspace = true
-grovedb-version = "2.1.0"
+grovedb-version = "3.0.0"
 indexmap = { version = "2.0.2", features = ["serde"] }
-jsonschema = "0.22.3"
-dpp = { git = "https://github.com/dashpay/platform", branch = "test/ferment", package = "dpp", features = ["state-transitions", "apple"] }
-platform-value = { git = "https://github.com/dashpay/platform", branch = "test/ferment", package = "platform-value", features = ["apple"] }
-platform-version = { git = "https://github.com/dashpay/platform", branch = "test/ferment", package = "platform-version", features = ["apple"] }
+jsonschema = { git = "https://github.com/dashpay/jsonschema-rs", branch = "configure_regexp", default-features = false, features = [
+    "draft202012",
+], optional = true }
+dpp = { git = "https://github.com/pankcuf/platform", branch = "test/ferment", features = ["state-transitions", "apple"] }
+platform-value = { git = "https://github.com/pankcuf/platform", branch = "test/ferment", features = ["apple"] }
+platform-version = { git = "https://github.com/pankcuf/platform", branch = "test/ferment", features = ["apple"] }
 versioned-feature-core = { version = "1.0.0" }
 regex = { version = "1.10.4" }
 serde_json = { version = "1.0", features = ["preserve_order"] }
+#elliptic-curve-tools = { version = "0.1.2", default-features = false, features = ["std", "alloc", "serde", "hex"] }
 
 [build-dependencies]
 cbindgen.workspace = true
@@ -32,6 +35,8 @@ ferment-sys = { workspace = true, features = ["objc"]}
 [features]
 bls-signatures = ["dpp/bls-signatures"]
 cbor = ["platform-value/cbor", "dpp/cbor", "dpp/ciborium"]
+core2 = ["dashcore/core2"]
+core-types = ["dpp/core-types"]
 data-contract-cbor-conversion = ["dpp/data-contract-cbor-conversion"]
 data-contract-json-conversion = ["dpp/data-contract-json-conversion"]
 data-contract-value-conversion = ["dpp/data-contract-value-conversion"]
@@ -49,17 +54,18 @@ json = ["platform-value/serde_json"]
 json-object = ["dpp/json-object"]
 json-schema-validation = ["dpp/json-schema-validation"]
 message-signing = ["dpp/message-signing"]
+message_verification = ["dashcore/message_verification"]
 mock-versions = ["platform-version/mock-versions"]
 platform-value = ["dpp/platform-value"]
+serde = ["dashcore/serde"]
 state-transitions = ["dpp/state-transitions"]
 state-transition-json-conversion = ["dpp/state-transition-json-conversion"]
 state-transition-validation = ["dpp/state-transition-validation"]
 state-transition-signing = ["dpp/state-transition-signing"]
 std = ["platform-value/std"]
-validation = ["dpp/validation"]
-core-types = ["dpp/core-types"]
 system_contracts = ["dpp/system_contracts"]
-
+validation = ["dpp/validation"]
+withdrawals-contract = ["dpp/withdrawals-contract"]
 
 [lib]
 name = "example_platform"

@@ -1,0 +1,37 @@
+[package]
+name = "example-dashcore"
+version = "0.2.14"
+edition = "2021"
+build = "build.rs"
+authors.workspace = true
+description.workspace = true
+homepage.workspace = true
+license.workspace = true
+keywords.workspace = true
+publish = false
+
+[dependencies]
+anyhow = { version = "1.0.75" }
+dashcore = { git = "https://github.com/pankcuf/rust-dashcore", branch = "feat/ferment", default-features = false, features = ["apple", "signer", "std"] }
+ferment.workspace = true
+ferment-macro.workspace = true
+
+indexmap = { version = "2.0.2", features = ["serde"] }
+jsonschema = { git = "https://github.com/dashpay/jsonschema-rs", branch = "configure_regexp", default-features = false, features = ["draft202012"], optional = true }
+regex = { version = "1.10.4" }
+serde_json = { version = "1.0", features = ["preserve_order"] }
+
+[build-dependencies]
+cbindgen.workspace = true
+ferment-sys = { workspace = true, features = ["objc"]}
+
+[features]
+default = ["serde", "std"]
+core2 = ["dashcore/core2"]
+message_verification = ["dashcore/message_verification"]
+serde = ["dashcore/serde"]
+std = ["dashcore/std"]
+quorum_validation = ["dashcore/quorum_validation"]
+
+[lib]
+name = "example_dashcore"

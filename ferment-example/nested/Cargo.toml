@@ -7,22 +7,22 @@ publish = false
 
 [dependencies]
 anyhow = "1.0.95"
-dashcore = { git = "https://github.com/dashpay/rust-dashcore", features = ["std", "secp-recovery", "rand", "signer", "serde", "apple"], default-features = false, branch = "feat/ferment" }
+dashcore = { git = "https://github.com/pankcuf/rust-dashcore", default-features = false, features = ["std", "secp-recovery", "rand", "signer", "apple"], branch = "feat/ferment" }
 
 ferment.workspace = true
 ferment-macro.workspace = true
 
 example-simple = { path = "../simple" }
 
-dpp = { git = "https://github.com/dashpay/platform", branch = "test/ferment", package = "dpp", default-features = false, features = ["apple", "dash-sdk-features"] }
-platform-value = { git = "https://github.com/dashpay/platform", branch = "test/ferment", package = "platform-value", features = ["apple"] }
-platform-version = { git = "https://github.com/dashpay/platform", branch = "test/ferment", package = "platform-version", features = ["apple"] }
+dpp = { git = "https://github.com/pankcuf/platform", branch = "test/ferment", default-features = false, features = ["apple", "dash-sdk-features"] }
+platform-value = { git = "https://github.com/pankcuf/platform", branch = "test/ferment", features = ["apple"] }
+platform-version = { git = "https://github.com/pankcuf/platform", branch = "test/ferment", features = ["apple"] }
 versioned-feature-core = "1.0.0"
 
 indexmap = "2.7.0"
-regex = "1.11.1"
-serde = { version = "1.0.215", features = ["derive"], optional = true }
-serde_json = "1.0.85"
+regex = "1.10.4"
+serde = { version = "1.0", features = ["derive"], optional = true }
+serde_json = { version = "1.0", optional = true }
 
 [build-dependencies]
 cbindgen.workspace = true

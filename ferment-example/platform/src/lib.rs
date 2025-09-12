@@ -22,3 +22,11 @@ pub mod spv {
     }
 }
 
+pub mod dash {
+    use dashcore::Transaction;
+
+    #[ferment_macro::export]
+    pub fn setup_dashcore(transaction: Transaction) {
+        println!("setup_dashcore: {transaction:?}")
+    }
+}

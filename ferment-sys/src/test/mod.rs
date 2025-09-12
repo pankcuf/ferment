@@ -3,6 +3,7 @@ mod lookup;
 mod generics_bounds;
 mod imports;
 mod scope_chain;
+mod reexport;
 mod resolver_generic;
 mod resolver_scope;
 mod scope_search_key;
