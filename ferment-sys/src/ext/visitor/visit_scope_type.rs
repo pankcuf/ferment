@@ -26,9 +26,9 @@ impl<'a> VisitScopeType<'a> for Type {
                     nested.push(NestedArgument::Object(ty.visit_scope_type(source)))
                 }
                 ObjectKind::model_type(TypeModelKind::FnPointer, TypeModel::new_nested_ref(self, nested))
-
             },
-            Type::Path(type_path) => type_path.visit_scope_type(source),
+            Type::Path(type_path) =>
+                type_path.visit_scope_type(source),
             Type::Ptr(TypePtr { elem, const_token, mutability, .. }) => {
                 let mut obj = elem.visit_scope_type(source);
                 if let ObjectKind::Type(tyc) | ObjectKind::Item(tyc, _) = &mut obj {
@@ -71,7 +71,8 @@ impl<'a> VisitScopeType<'a> for Type {
                 ObjectKind::model_type(TypeModelKind::Slice, TypeModel::new_nested_ref(self, NestedArgument::Object(elem.visit_scope_type(source)).punctuate_one())),
             Type::Tuple(TypeTuple { elems, .. }) =>
                 ObjectKind::model_type(TypeModelKind::Tuple, TypeModel::new_nested_ref(self, Punctuated::from_iter(elems.iter().map(|elem| NestedArgument::Object(elem.visit_scope_type(source)))))),
-            ty => ObjectKind::unknown_type(ty.clone())
+            ty =>
+                ObjectKind::unknown_type(ty.clone())
         }
     }
 }

@@ -163,7 +163,7 @@ impl Resolve<FFIVariable<ObjCSpecification, TokenStream2>> for Path {
                             _ => None
                         }).unwrap_or_else(|| FFIVariable::mut_ptr(self.to_token_stream()))
                 } else if last_ident.is_special_generic() || (last_ident.is_result() /*&& path.segments.len() == 1*/) || (last_ident.eq("Map") && first_ident.eq("serde_json")) {
-                    FFIVariable::mut_ptr(source.scope_type_for_path(self).map_or(self.to_token_stream(), |full_type| full_type.mangle_tokens_default()))
+                    FFIVariable::mut_ptr(source.scope_type_for_path(self).map(|full_type| full_type.mangle_tokens_default()).unwrap_or_else(|| self.to_token_stream()))
                 } else {
                     FFIVariable::mut_ptr(self.to_token_stream())
                 }

@@ -27,13 +27,13 @@ pub trait FFISpecialTypeResolve<SPEC>
     fn is_opaque(&self, source: &ScopeContext) -> bool {
         self.maybe_special_type(source)
             .map(|special| matches!(special, SpecialType::Opaque(..)))
-            .unwrap_or(false)
+            .unwrap_or_default()
     }
     #[allow(unused)]
     fn is_custom(&self, source: &ScopeContext) -> bool {
         self.maybe_special_type(source)
             .map(|special| matches!(special, SpecialType::Custom(..)))
-            .unwrap_or(false)
+            .unwrap_or_default()
     }
     fn maybe_custom_or_opaque(&self, source: &ScopeContext) -> Option<SpecialType<SPEC>> {
         self.maybe_special_type(source)

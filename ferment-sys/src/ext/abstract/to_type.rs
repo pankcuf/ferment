@@ -12,6 +12,7 @@ pub trait AsType<'a> {
 pub trait ToPath {
     fn to_path(&self) -> Path;
 }
+#[allow(unused)]
 pub trait ToPathSepSegments {
     fn to_segments(&self) -> Colon2Punctuated<syn::PathSegment>;
 }

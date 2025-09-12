@@ -427,7 +427,7 @@ pub fn format_global_context(context: &GlobalContext) -> String {
     let mut sections: Vec<Vec<String>> = Vec::new();
 
     // Types: always include
-    sections.push(vec!["-- types:".to_string(), context.scope_register.to_string()]);
+    sections.push(vec!["\n-- types:".to_string(), context.scope_register.to_string()]);
 
     // Traits: include only if non-empty
     let traits = scope_traits_dict(&context.traits.inner);

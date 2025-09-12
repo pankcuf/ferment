@@ -35,6 +35,9 @@ pub trait TypeModeled {
     fn nested_arguments_ref(&self) -> &CommaPunctuatedNestedArguments {
         &self.type_model_ref().nested_arguments
     }
+    fn nested_arguments(&self) -> CommaPunctuatedNestedArguments {
+        self.nested_arguments_ref().clone()
+    }
     fn ty_mut(&mut self) -> &mut Type {
         &mut self.type_model_mut().ty
     }

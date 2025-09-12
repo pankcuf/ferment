@@ -12,12 +12,12 @@ impl Unrefined for GlobalContext {
         self.scope_register.inner.iter()
             .for_each(|(scope, type_chain)| {
                 let scope_types_to_refine = type_chain.inner.iter()
-                    .filter_map(|(holder, object)|
+                    .filter_map(|(ty, object)|
                         self.maybe_refined_object(scope, object)
-                            .map(|object_to_refine| (holder.clone(), object_to_refine)))
+                            .map(|object_to_refine| (ty.to_owned(), object_to_refine)))
                     .collect::<HashMap<_, _>>();
                 if !scope_types_to_refine.is_empty() {
-                    scope_updates.push((scope.clone(), scope_types_to_refine));
+                    scope_updates.push((scope.to_owned(), scope_types_to_refine));
                 }
             });
         scope_updates

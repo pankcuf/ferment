@@ -76,7 +76,7 @@ impl TypeChain {
         fn is_plain_self(ty: &Type) -> bool {
             match ty {
                 Type::Path(TypePath { qself: None, path: SynPath { leading_colon: None, segments }, .. })
-                    if segments.len() == 1 => segments.first().map(|s| s.ident == "Self").unwrap_or(false),
+                    if segments.len() == 1 => segments.first().map(|s| s.ident == "Self").unwrap_or_default(),
                 _ => false,
             }
         }

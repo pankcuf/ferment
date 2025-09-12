@@ -269,13 +269,13 @@ pub fn composer_base_derive(input: TokenStream) -> TokenStream {
 pub fn debug_io(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as ItemFn);
     let ItemFn { sig: Signature { ident: ref method_name, ref inputs, .. }, ref block, .. } = input;
-    let args: Vec<_> = inputs.iter().filter_map(|arg| {
+    let args = inputs.iter().filter_map(|arg| {
         if let FnArg::Typed(PatType { pat, .. }) = arg {
-            Some(quote! { #pat })
+            Some(pat)
         } else {
             None
         }
-    }).collect();
+    }).collect::<Vec<_>>();
     let fn_name = format!("{}", method_name);
 
     let args_str = args.iter().map(ToTokens::to_token_stream).collect::<Vec<_>>();

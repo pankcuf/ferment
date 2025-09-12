@@ -106,8 +106,8 @@ pub(crate) fn maybe_closest_known_scope_for_import_in_scope<'a>(path: &'a Path, 
 }
 
 fn merge_reexport_chunks(mut base: Path, extension: &Path) -> Path {
-    let mut base_segments: Vec<_> = base.segments.iter().collect();
-    let mut ext_segments: Vec<_> = extension.segments.iter().collect();
+    let mut base_segments = base.segments.iter().collect::<Vec<_>>();
+    let mut ext_segments = extension.segments.iter().collect::<Vec<_>>();
     base_segments.reverse();
     ext_segments.reverse();
     let mut result_segments = vec![];

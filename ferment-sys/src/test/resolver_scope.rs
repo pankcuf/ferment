@@ -1,4 +1,4 @@
-use quote::ToTokens;
+use quote::{format_ident, ToTokens};
 use syn::{parse_quote, Path, Type};
 use crate::context::{ScopeResolver, ScopeChain, ScopeInfo, Scope, ScopeSearchKey};
 use crate::ext::ToType;
@@ -9,7 +9,8 @@ fn root_scope() -> ScopeChain {
 }
 
 fn make_info(path: Path) -> ScopeInfo {
-    ScopeInfo::attr_less(parse_quote!(my_crate), Scope::empty(path))
+    let crate_ident = format_ident!("my_crate");
+    ScopeInfo::attr_less(&crate_ident, Scope::empty(path))
 }
 
 #[test]

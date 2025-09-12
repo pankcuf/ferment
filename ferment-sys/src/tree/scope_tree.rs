@@ -46,7 +46,7 @@ pub fn create_generics_scope_tree(root_scope_chain: &ScopeChain, global_context:
     let rename =  root_scope_chain.crate_ident();
     let generics_scope_ident = format_ident!("generics");
     let generics_scope_chain = ScopeChain::r#mod(
-        ScopeInfo::attr_less(rename.clone(), Scope::empty(root_scope_chain.self_path_ref().joined(&generics_scope_ident))),
+        ScopeInfo::attr_less(&rename, Scope::empty(root_scope_chain.self_path_ref().joined(&generics_scope_ident))),
         root_scope_chain.clone());
 
     create_scope_tree(

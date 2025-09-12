@@ -83,7 +83,7 @@ impl<SPEC> MaybeLambdaArgs<SPEC> for TypeModelKind
     fn maybe_lambda_arg_names(&self) -> Option<CommaPunctuated<SPEC::Name>> {
         match self.maybe_callback() {
             Some(ParenthesizedGenericArguments { inputs, ..}) =>
-                Some(CommaPunctuated::from_iter(inputs.iter().enumerate().map(|(index, _ty)| SPEC::Name::unnamed_arg(index)))),
+                Some(CommaPunctuated::from_iter((0..inputs.len()).map(SPEC::Name::unnamed_arg))),
             _ => None
         }
     }

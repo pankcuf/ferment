@@ -165,7 +165,7 @@ impl GlobalContext {
                     self.maybe_local_scope_object_ref_by_key(ty, parent_scope)
                         .or_else(|| match &**parent {
                             ScopeChain::CrateRoot { .. } |
-                            ScopeChain::Mod { ..} =>
+                            ScopeChain::Mod { .. } =>
                                 self.maybe_local_scope_object_ref_by_key(ty, parent),
                             _ => None,
                         }),

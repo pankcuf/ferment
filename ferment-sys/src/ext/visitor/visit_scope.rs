@@ -1,3 +1,46 @@
+//! VisitScope: attach syn items to scope and collect types
+//!
+//! This module defines the [`VisitScope`] trait used by the tree traversal `Visitor` to
+//! attach parsed syn items (modules, traits, impls, structs/enums, fns, type aliases)
+//! to a semantic [`ScopeChain`], and to collect/import the types they reference into the
+//! global context. The collection feeds later codegen and logging.
+//!
+//! Key behaviors (high level):
+//! - Creates child scopes for items (`join_scope`) and populates the scope register (`add_to_scope`).
+//! - Resolves paths against folded imports (rename/group) and records imported kinds.
+//! - Records function argument and return types; handles generics and trait/impl-specific rules.
+//! - Propagates non-Self, non-method-generic types upward to parent scopes for discoverability.
+//! - Keeps Self-associated paths (e.g. `Self::Item`, `<Self as Trait>::Assoc`) in trait/impl scopes
+//!   while not leaking them to parents.
+//! - Method generics are collected in the function scope; their trait/impl scopes see the bounds but
+//!   parents do not.
+//!
+//! Examples
+//! --------
+//! Attach a struct item to a module scope and collect its field types:
+//!
+//! ```ignore
+//! # use syn::parse_quote;
+//! # use ferment_sys::tree::Visitor;
+//! # use ferment_sys::context::{GlobalContext, ScopeChain};
+//! # use std::rc::Rc; use std::cell::RefCell;
+//! # let ctx = Rc::new(RefCell::new(GlobalContext::with_config(ferment_sys::Config::new(
+//! #   "fermented", ferment_sys::lang::rust::Crate::current_with_name("my_crate"), cbindgen::Config::default()))));
+//! let mod_scope = ScopeChain::crate_root_with_ident(parse_quote!(my_crate), vec![]);
+//! let mut visitor = Visitor::new(&mod_scope, &[], &ctx);
+//! let item: syn::Item = parse_quote!(struct S { f: u32 });
+//! // Creates/returns the child scope for `S` and populates the register
+//! let _child = ferment_sys::ext::VisitScope::join_scope(&item, &mod_scope, &mut visitor).unwrap();
+//! ```
+//!
+//! For trait/impl methods, argument and return type collection follows:
+//! - Full chains recorded in the function scope
+//! - Trait/impl scopes receive: Self-associated entries and non-method-generic entries
+//! - Parent scopes receive: non-method-generic entries only
+//!
+//! This strikes a balance between local accuracy (compose at trait/impl scope) and preventing
+//! leakage of `Self`-anchored semantics into outer scopes.
+
 use std::collections::{HashMap, HashSet};
 use indexmap::IndexMap;
 use proc_macro2::Ident;
@@ -13,8 +56,34 @@ use crate::ext::{Join, MaybeTraitBound, ToType, GenericBoundKey};
 use crate::ext::maybe_ident::collect_bounds;
 use crate::tree::Visitor;
 
+/// Trait implemented for syn items to attach themselves to a scope and populate the global context.
+///
+/// The default `Visitor` traversal calls these methods to:
+/// - Determine the child scope for an item (`join_scope`).
+/// - Collect referenced types, imports, and generics into the appropriate scopes (`add_to_scope`).
+///
+/// Semantics summary:
+/// - Struct/Enum/Type/Fn: create object or fn scopes under the current scope; record field/arg/return types.
+/// - Module: re-traverse inner content and attach nested items.
+/// - Trait:
+///   - Record trait itself in trait scope and alias in parent.
+///   - For methods: record full chains in fn scope; add Self-associated and non-method-generic entries to trait scope;
+///     add non-method-generic entries to the parent.
+/// - Impl:
+///   - For inherent/trait impl methods: record as for traits, but under impl scope.
+/// - Generics: method generics are collected in the fn scope; bounds are visible in trait/impl scope; parents do not receive them.
 pub trait VisitScope {
+    /// Creates a child scope for `self` under `scope`, attaches/collects the item, and returns the child.
+    ///
+    /// Returns `None` for items that do not participate in scope creation (e.g., unsupported kinds).
     fn join_scope(&self, scope: &ScopeChain, visitor: &mut Visitor) -> Option<ScopeChain>;
+
+    /// Populates the global context with information derived from `self` within `scope`.
+    ///
+    /// Collects:
+    /// - Resolved field/argument/return types (including imports and unknowns)
+    /// - Generics and bounds (recorded at fn/trait/impl scopes as described above)
+    /// - Trait/impl method specifics (Self-associated vs non-method-generic propagation)
     fn add_to_scope(&self, scope: &ScopeChain, visitor: &mut Visitor);
 }
 
@@ -369,23 +438,6 @@ fn add_full_qualified_signature(visitor: &mut Visitor, sig: &Signature, scope: &
 
     let generic_chain = create_generics_chain(generics);
     visitor.add_generic_chain(scope, generic_chain);
-
-    // let generic_chain = create_generics_chain(visitor, generics, scope, false);
-    // visitor.add_generic_chain(scope, generic_chain);
-
-
-    // let ty: Type = parse_quote!(#ident);
-    // self.add_full_qualified_type_match(scope, &ty);
-    // match scope.obj_root_chain() {
-    //     Some(parent) => {
-    //         let ty: TypeHolder = parse_quote!(#ident);
-    //         // TODO: wrong here can be non-determined context
-    //         let object = self.visit_scope_type(parent, &ty.0);
-    //         self.scope_add_one(ty, object, parent);
-    //
-    //     },
-    //     _ => {}
-    // }
 }
 
 fn add_inner_module_conversion(visitor: &mut Visitor, item_mod: &ItemMod, scope: &ScopeChain) {

@@ -65,15 +65,23 @@ impl ScopeChain {
         Self::r#fn(ScopeInfo::new(attrs.to_owned(), crate_ident.clone(), self_scope), parent.clone())
     }
 
-    pub fn obj_scope_priority(&self) -> u8 {
-        match self {
-            ScopeChain::CrateRoot { .. } => 0,
-            ScopeChain::Mod { .. } => 1,
-            ScopeChain::Trait { .. } => 4,
-            ScopeChain::Fn { .. } => 3,
-            ScopeChain::Object { .. } => 5,
-            ScopeChain::Impl { .. } => 2,
-        }
+    fn crate_root_with(attrs: Vec<Attribute>, crate_ident: Ident, path: Path) -> Self {
+        Self::root_with(attrs, crate_ident, Scope::empty(path))
+    }
+    fn new_mod(crate_ident: Ident, self_scope: Scope, parent_scope: &ScopeChain, attrs: Vec<Attribute>) -> Self {
+        Self::r#mod(ScopeInfo::new(attrs, crate_ident, self_scope), parent_scope.clone())
+    }
+
+    pub fn crate_root_with_ident(crate_ident: Ident, attrs: Vec<Attribute>) -> Self {
+        let path = crate_ident.to_path();
+        Self::crate_root_with(attrs, crate_ident, path)
+    }
+    pub fn crate_root(crate_ident: Ident, attrs: Vec<Attribute>) -> Self {
+        Self::crate_root_with(attrs, crate_ident, parse_quote!(crate))
+    }
+
+    pub fn child_mod(attrs: Vec<Attribute>, crate_ident: Ident, name: &Ident, parent_scope: &ScopeChain) -> Self {
+        Self::new_mod(crate_ident, Scope::empty(parent_scope.self_path_ref().joined(name)), parent_scope, attrs)
     }
 }
 
@@ -193,25 +201,16 @@ impl ToType for ScopeChain {
 
 impl ScopeChain {
 
-    fn crate_root_with(attrs: Vec<Attribute>, crate_ident: Ident, path: Path) -> Self {
-        Self::root_with(attrs, crate_ident, Scope::empty(path))
+    pub fn obj_scope_priority(&self) -> u8 {
+        match self {
+            ScopeChain::CrateRoot { .. } => 0,
+            ScopeChain::Mod { .. } => 1,
+            ScopeChain::Trait { .. } => 4,
+            ScopeChain::Fn { .. } => 3,
+            ScopeChain::Object { .. } => 5,
+            ScopeChain::Impl { .. } => 2,
+        }
     }
-    fn new_mod(crate_ident: Ident, self_scope: Scope, parent_scope: &ScopeChain, attrs: Vec<Attribute>) -> Self {
-        Self::r#mod(ScopeInfo::new(attrs, crate_ident, self_scope), parent_scope.clone())
-    }
-
-    pub fn crate_root_with_ident(crate_ident: Ident, attrs: Vec<Attribute>) -> Self {
-        let path = crate_ident.to_path();
-        Self::crate_root_with(attrs, crate_ident, path)
-    }
-    pub fn crate_root(crate_ident: Ident, attrs: Vec<Attribute>) -> Self {
-        Self::crate_root_with(attrs, crate_ident, parse_quote!(crate))
-    }
-
-    pub fn child_mod(attrs: Vec<Attribute>, crate_ident: Ident, name: &Ident, parent_scope: &ScopeChain) -> Self {
-        Self::new_mod(crate_ident, Scope::empty(parent_scope.self_path_ref().joined(name)), parent_scope, attrs)
-    }
-
     pub fn crate_name(&self) -> TokenStream2 {
         if self.is_crate_root() {
             self.crate_ident_ref().to_token_stream()
