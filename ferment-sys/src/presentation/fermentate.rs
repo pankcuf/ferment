@@ -51,7 +51,7 @@ pub enum RustFermentate {
     Mod {
         attrs: Vec<Attribute>,
         name: TokenStream2,
-        imports: SemiPunctuated<ItemUse>,
+        imports: Option<SemiPunctuated<ItemUse>>,
         conversions: Depunctuated<RustFermentate>
     },
     Impl {
@@ -86,13 +86,13 @@ pub enum RustFermentate {
 
 impl RustFermentate {
 
-    pub fn mod_with(attrs: Vec<Attribute>, name: TokenStream2, imports: SemiPunctuated<ItemUse>, conversions: Depunctuated<RustFermentate>) -> Self {
+    pub fn mod_with(attrs: Vec<Attribute>, name: TokenStream2, imports: Option<SemiPunctuated<ItemUse>>, conversions: Depunctuated<RustFermentate>) -> Self {
         Self::Mod { attrs, name, imports, conversions }
     }
     pub fn types(attrs: &[Attribute], conversions: Depunctuated<RustFermentate>) -> Self {
-        Self::mod_with(attrs.to_owned(), quote!(types), SemiPunctuated::new(), conversions)
+        Self::mod_with(attrs.to_owned(), quote!(types), None, conversions)
     }
-    pub fn generics(attrs: &[Attribute], imports: SemiPunctuated<ItemUse>, conversions: Depunctuated<RustFermentate>) -> Self {
+    pub fn generics(attrs: &[Attribute], imports: Option<SemiPunctuated<ItemUse>>, conversions: Depunctuated<RustFermentate>) -> Self {
         Self::mod_with(attrs.to_owned(), quote!(generics), imports, conversions)
     }
 }
@@ -140,9 +140,6 @@ impl ToTokens for RustFermentate {
                 trait_object.to_tokens(tokens);
                 vtable.to_tokens(tokens);
             },
-            // Self::CrateTree(tree) =>
-            //     <CrateTree as SourceFermentable<RustFermentate>>::ferment(tree)
-            //         .to_tokens(tokens),
             Self::ScopeTree(tree) =>
                 <ScopeTree as SourceFermentable<RustFermentate>>::ferment(tree)
                     .to_tokens(tokens),

@@ -16,100 +16,19 @@
     unused_variables
 )]
 pub mod types {
-    pub mod dashcore_hashes {
-        use crate as example_dashcore;
-        pub mod _export {
-            use crate as example_dashcore;
-        }
-        pub mod util {
-            use crate as example_dashcore;
-        }
-        pub mod serde_macros {
-            use crate as example_dashcore;
-        }
-        pub mod hash160 {
-            use crate as example_dashcore;
-        }
-        pub mod hex {
-            use crate as example_dashcore;
-        }
-        pub mod hmac {
-            use crate as example_dashcore;
-        }
-        #[cfg(any(feature = "std", feature = "core2"))]
-        pub mod impls {
-            use crate as example_dashcore;
-        }
-        pub mod ripemd160 {
-            use crate as example_dashcore;
-        }
-        pub mod sha1 {
-            use crate as example_dashcore;
-        }
-        pub mod sha256 {
-            use crate as example_dashcore;
-            #[cfg(test)]
-            pub mod tests {
-                use crate as example_dashcore;
-            }
-        }
-        pub mod sha256d {
-            use crate as example_dashcore;
-        }
-        pub mod sha256t {
-            use crate as example_dashcore;
-        }
-        pub mod sha512 {
-            use crate as example_dashcore;
-        }
-        pub mod sha512_256 {
-            use crate as example_dashcore;
-        }
-        pub mod siphash24 {
-            use crate as example_dashcore;
-        }
-    }
     pub mod dashcore {
-        use crate as example_dashcore;
-        pub mod internal_macros {
-            use crate as example_dashcore;
-        }
-        #[cfg(feature = "serde")]
-        pub mod serde_utils {
-            use crate as example_dashcore;
-        }
         pub mod network {
-            use crate as example_dashcore;
-            pub mod constants {
-                use crate as example_dashcore;
-            }
-            #[cfg(feature = "std")]
-            pub mod address {
-                use crate as example_dashcore;
-            }
-            #[cfg(feature = "std")]
-            pub mod message {
-                use crate as example_dashcore;
-            }
-            #[cfg(feature = "std")]
-            pub mod message_blockdata {
-                use crate as example_dashcore;
-            }
-            #[cfg(feature = "std")]
-            pub mod message_headers2 {
-                use crate as example_dashcore;
-            }
-            #[cfg(feature = "std")]
-            pub mod message_network {
-                use crate as example_dashcore;
-            }
             #[cfg(feature = "std")]
             pub mod message_qrinfo {
                 use crate as example_dashcore;
                 #[doc = "FFI-representation of the [`QuorumSnapshot`]"]
                 #[repr(C)]
                 #[derive(Clone)]
-                pub struct dashcore_network_message_qrinfo_QuorumSnapshot { pub skip_list_mode : * mut crate :: fermented :: types :: dashcore :: network :: message_qrinfo :: dashcore_network_message_qrinfo_MNSkipListMode , pub active_quorum_members : * mut crate :: fermented :: generics :: Vec_bool , pub skip_list : * mut crate :: fermented :: generics :: Vec_i32 }
+                pub struct dashcore_network_message_qrinfo_QuorumSnapshot {
+                    pub skip_list_mode : * mut crate :: fermented :: types :: dashcore :: network :: message_qrinfo :: dashcore_network_message_qrinfo_MNSkipListMode ,
+                    pub active_quorum_members : * mut crate :: fermented :: generics :: Vec_bool ,
+                    pub skip_list : * mut crate :: fermented :: generics :: Vec_i32
+                }
                 impl ferment::FFIConversionFrom<dashcore::network::message_qrinfo::QuorumSnapshot>
                     for dashcore_network_message_qrinfo_QuorumSnapshot
                 {
@@ -117,7 +36,11 @@ pub mod types {
                         ffi: *const dashcore_network_message_qrinfo_QuorumSnapshot,
                     ) -> dashcore::network::message_qrinfo::QuorumSnapshot {
                         let ffi_ref = &*ffi;
-                        dashcore :: network :: message_qrinfo :: QuorumSnapshot { skip_list_mode : < crate :: fermented :: types :: dashcore :: network :: message_qrinfo :: dashcore_network_message_qrinfo_MNSkipListMode as ferment :: FFIConversionFrom < dashcore :: network :: message_qrinfo :: MNSkipListMode >> :: ffi_from (ffi_ref . skip_list_mode) , active_quorum_members : < crate :: fermented :: generics :: Vec_bool as ferment :: FFIConversionFrom < Vec < bool > >> :: ffi_from (ffi_ref . active_quorum_members) , skip_list : < crate :: fermented :: generics :: Vec_i32 as ferment :: FFIConversionFrom < Vec < i32 > >> :: ffi_from (ffi_ref . skip_list) }
+                        dashcore :: network :: message_qrinfo :: QuorumSnapshot {
+                            skip_list_mode : < crate :: fermented :: types :: dashcore :: network :: message_qrinfo :: dashcore_network_message_qrinfo_MNSkipListMode as ferment :: FFIConversionFrom < dashcore :: network :: message_qrinfo :: MNSkipListMode >> :: ffi_from (ffi_ref . skip_list_mode) ,
+                            active_quorum_members : < crate :: fermented :: generics :: Vec_bool as ferment :: FFIConversionFrom < Vec < bool > >> :: ffi_from (ffi_ref . active_quorum_members) ,
+                            skip_list : < crate :: fermented :: generics :: Vec_i32 as ferment :: FFIConversionFrom < Vec < i32 > >> :: ffi_from (ffi_ref . skip_list)
+                        }
                     }
                 }
                 impl ferment::FFIConversionTo<dashcore::network::message_qrinfo::QuorumSnapshot>
@@ -289,61 +212,9 @@ pub mod types {
                     ferment::unbox_any(ffi);
                 }
             }
-            #[cfg(feature = "std")]
-            pub mod message_sml {
-                use crate as example_dashcore;
-            }
-        }
-        pub mod address {
-            use crate as example_dashcore;
-        }
-        pub mod amount {
-            use crate as example_dashcore;
-            #[cfg(feature = "serde")]
-            pub mod serde {
-                use crate as example_dashcore;
-                pub mod as_sat {
-                    use crate as example_dashcore;
-                }
-                pub mod as_btc {
-                    use crate as example_dashcore;
-                }
-            }
-        }
-        pub mod base58 {
-            use crate as example_dashcore;
-        }
-        pub mod bip152 {
-            use crate as example_dashcore;
-        }
-        pub mod bip158 {
-            use crate as example_dashcore;
         }
         pub mod blockdata {
-            use crate as example_dashcore;
-            pub mod block {
-                use crate as example_dashcore;
-            }
-            pub mod constants {
-                use crate as example_dashcore;
-            }
-            pub mod fee_rate {
-                use crate as example_dashcore;
-            }
-            pub mod locktime {
-                use crate as example_dashcore;
-                pub mod absolute {
-                    use crate as example_dashcore;
-                }
-                pub mod relative {
-                    use crate as example_dashcore;
-                }
-            }
-            pub mod opcodes {
-                use crate as example_dashcore;
-            }
             pub mod script {
-                use crate as example_dashcore;
                 pub mod owned {
                     use crate as example_dashcore;
                     #[doc = "FFI-representation of the [`ScriptBuf`]"]
@@ -409,9 +280,6 @@ pub mod types {
                     ) {
                         (*obj).0 = value;
                     }
-                }
-                pub mod push_bytes {
-                    use crate as example_dashcore;
                 }
             }
             pub mod transaction {
@@ -584,7 +452,6 @@ pub mod types {
                         }
                     }
                     pub mod asset_unlock {
-                        use crate as example_dashcore;
                         pub mod qualified_asset_unlock {
                             use crate as example_dashcore;
                             #[doc = "FFI-representation of the [`AssetUnlockPayload`]"]
@@ -873,9 +740,6 @@ pub mod types {
                             let obj = dashcore :: blockdata :: transaction :: special_transaction :: coinbase :: CoinbasePayload :: size (Box :: leak (Box :: new (< crate :: fermented :: types :: dashcore :: blockdata :: transaction :: special_transaction :: coinbase :: dashcore_blockdata_transaction_special_transaction_coinbase_CoinbasePayload as ferment :: FFIConversionFrom < dashcore :: blockdata :: transaction :: special_transaction :: coinbase :: CoinbasePayload >> :: ffi_from (self_)))) ;
                             obj
                         }
-                    }
-                    pub mod mnhf_signal {
-                        use crate as example_dashcore;
                     }
                     pub mod provider_registration {
                         use crate as example_dashcore;
@@ -2247,9 +2111,6 @@ pub mod types {
                     obj
                 }
             }
-            pub mod weight {
-                use crate as example_dashcore;
-            }
             pub mod witness {
                 use crate as example_dashcore;
                 #[doc = "FFI-representation of the [`Witness`]"]
@@ -2357,28 +2218,6 @@ pub mod types {
                     value: usize,
                 ) {
                     (*obj).indices_start = value;
-                }
-            }
-        }
-        pub mod bloom {
-            use crate as example_dashcore;
-            pub mod filter {
-                use crate as example_dashcore;
-            }
-            pub mod hash {
-                use crate as example_dashcore;
-            }
-        }
-        pub mod consensus {
-            use crate as example_dashcore;
-            pub mod encode {
-                use crate as example_dashcore;
-            }
-            #[cfg(feature = "serde")]
-            pub mod serde {
-                use crate as example_dashcore;
-                pub mod hex {
-                    use crate as example_dashcore;
                 }
             }
         }
@@ -2517,17 +2356,7 @@ pub mod types {
                 (*obj).0 = value;
             }
         }
-        pub mod crypto {
-            use crate as example_dashcore;
-            pub mod key {
-                use crate as example_dashcore;
-            }
-            pub mod sighash {
-                use crate as example_dashcore;
-            }
-        }
         pub mod ephemerealdata {
-            use crate as example_dashcore;
             pub mod chain_lock {
                 use crate as example_dashcore;
                 #[doc = "FFI-representation of the [`ChainLock`]"]
@@ -2737,29 +2566,7 @@ pub mod types {
                 }
             }
         }
-        pub mod hash_types {
-            use crate as example_dashcore;
-        }
-        pub mod merkle_tree {
-            use crate as example_dashcore;
-            pub mod block {
-                use crate as example_dashcore;
-            }
-        }
-        pub mod pow {
-            use crate as example_dashcore;
-        }
-        pub mod sign_message {
-            use crate as example_dashcore;
-        }
-        pub mod signer {
-            use crate as example_dashcore;
-        }
         pub mod sml {
-            use crate as example_dashcore;
-            pub mod address {
-                use crate as example_dashcore;
-            }
             pub mod error {
                 use crate as example_dashcore;
                 #[doc = "FFI-representation of the [`# doc = \"FFI-representation of the [`SmlError`]\"`]"]
@@ -3040,9 +2847,6 @@ pub mod types {
             }
             pub mod llmq_type {
                 use crate as example_dashcore;
-                pub mod network {
-                    use crate as example_dashcore;
-                }
                 #[doc = "FFI-representation of the [`# doc = \"FFI-representation of the [`LLMQType`]\"`]"]
                 #[repr(C)]
                 #[derive(Clone)]
@@ -3471,13 +3275,6 @@ pub mod types {
                     (*obj).quorums = value;
                 }
             }
-            pub mod masternode_list_engine {
-                use crate as example_dashcore;
-                #[cfg(feature = "message_verification")]
-                pub mod message_request_verification {
-                    use crate as example_dashcore;
-                }
-            }
             pub mod masternode_list_entry {
                 use crate as example_dashcore;
                 pub mod qualified_masternode_list_entry {
@@ -3693,7 +3490,6 @@ pub mod types {
                 }
             }
             pub mod quorum_entry {
-                use crate as example_dashcore;
                 pub mod qualified_quorum_entry {
                     use crate as example_dashcore;
                     #[doc = "FFI-representation of the [`# doc = \"FFI-representation of the [`VerifyingChainLockSignaturesType`]\"`]"]
@@ -3821,14 +3617,6 @@ pub mod types {
                         value : * mut crate :: fermented :: types :: dashcore :: sml :: quorum_entry :: qualified_quorum_entry :: dashcore_sml_quorum_entry_qualified_quorum_entry_VerifyingChainLockSignaturesType,
                     ) {
                         (*obj).verifying_chain_lock_signature = value;
-                    }
-                }
-                #[cfg(feature = "quorum_validation")]
-                pub mod validation {
-                    use crate as example_dashcore;
-                    #[cfg(test)]
-                    pub mod tests {
-                        use crate as example_dashcore;
                     }
                 }
             }
@@ -4120,12 +3908,6 @@ pub mod types {
                 }
             }
         }
-        pub mod taproot {
-            use crate as example_dashcore;
-        }
-        pub mod util {
-            use crate as example_dashcore;
-        }
         pub mod prelude {
             use crate as example_dashcore;
             #[doc = "FFI-representation of the [`CoreBlockHeight`]"]
@@ -4187,9 +3969,6 @@ pub mod types {
     }
     pub mod example_dashcore {
         use crate as example_dashcore;
-        pub mod custom {
-            use crate as example_dashcore;
-        }
         #[doc = "FFI-representation of the [`SPV`]"]
         #[repr(C)]
         #[derive(Clone)]
@@ -4274,6 +4053,222 @@ pub mod generics {
     use crate as example_dashcore;
     #[repr(C)]
     #[derive(Clone)]
+    pub struct Vec_dashcore_blockdata_transaction_txin_TxIn { pub count : usize , pub values : * mut * mut crate :: fermented :: types :: dashcore :: blockdata :: transaction :: txin :: dashcore_blockdata_transaction_txin_TxIn }
+    impl ferment::FFIConversionFrom<Vec<dashcore::blockdata::transaction::txin::TxIn>>
+        for Vec_dashcore_blockdata_transaction_txin_TxIn
+    {
+        unsafe fn ffi_from_const(
+            ffi: *const Vec_dashcore_blockdata_transaction_txin_TxIn,
+        ) -> Vec<dashcore::blockdata::transaction::txin::TxIn> {
+            let ffi_ref = &*ffi;
+            ferment::from_group(ffi_ref.count, ffi_ref.values, |o| {
+                < crate :: fermented :: types :: dashcore :: blockdata :: transaction :: txin :: dashcore_blockdata_transaction_txin_TxIn as ferment :: FFIConversionFrom < dashcore :: blockdata :: transaction :: txin :: TxIn >> :: ffi_from (* o)
+            })
+        }
+    }
+    impl ferment::FFIConversionTo<Vec<dashcore::blockdata::transaction::txin::TxIn>>
+        for Vec_dashcore_blockdata_transaction_txin_TxIn
+    {
+        unsafe fn ffi_to_const(
+            obj: Vec<dashcore::blockdata::transaction::txin::TxIn>,
+        ) -> *const Vec_dashcore_blockdata_transaction_txin_TxIn {
+            ferment::boxed(Self {
+                count: obj.len(),
+                values: ferment::to_group(obj.into_iter(), |o| {
+                    < crate :: fermented :: types :: dashcore :: blockdata :: transaction :: txin :: dashcore_blockdata_transaction_txin_TxIn as ferment :: FFIConversionTo < dashcore :: blockdata :: transaction :: txin :: TxIn >> :: ffi_to (o)
+                }),
+            })
+        }
+    }
+    impl Drop for Vec_dashcore_blockdata_transaction_txin_TxIn {
+        fn drop(&mut self) {
+            unsafe {
+                ferment::unbox_group(self.values, self.count, |o| ferment::unbox_any(o));
+            }
+        }
+    }
+    #[no_mangle]
+    pub unsafe extern "C" fn Vec_dashcore_blockdata_transaction_txin_TxIn_ctor(
+        count: usize,
+        values : * mut * mut crate :: fermented :: types :: dashcore :: blockdata :: transaction :: txin :: dashcore_blockdata_transaction_txin_TxIn,
+    ) -> *mut Vec_dashcore_blockdata_transaction_txin_TxIn {
+        ferment::boxed(Vec_dashcore_blockdata_transaction_txin_TxIn { count, values })
+    }
+    #[no_mangle]
+    pub unsafe extern "C" fn Vec_dashcore_blockdata_transaction_txin_TxIn_destroy(
+        ffi: *mut Vec_dashcore_blockdata_transaction_txin_TxIn,
+    ) {
+        ferment::unbox_any(ffi);
+    }
+    #[no_mangle]    pub unsafe extern "C" fn Vec_dashcore_blockdata_transaction_txin_TxIn_value_at_index (ffi : * const Vec_dashcore_blockdata_transaction_txin_TxIn , index : usize) -> * mut crate :: fermented :: types :: dashcore :: blockdata :: transaction :: txin :: dashcore_blockdata_transaction_txin_TxIn{
+        *(*ffi).values.add(index)
+    }
+    #[no_mangle]
+    pub unsafe extern "C" fn Vec_dashcore_blockdata_transaction_txin_TxIn_set_value_at_index(
+        ffi: *mut Vec_dashcore_blockdata_transaction_txin_TxIn,
+        index: usize,
+        value : * mut crate :: fermented :: types :: dashcore :: blockdata :: transaction :: txin :: dashcore_blockdata_transaction_txin_TxIn,
+    ) {
+        *(*ffi).values.add(index) = value
+    }
+    #[repr(C)]
+    #[derive(Clone)]
+    pub struct Vec_dashcore_blockdata_transaction_txout_TxOut { pub count : usize , pub values : * mut * mut crate :: fermented :: types :: dashcore :: blockdata :: transaction :: txout :: dashcore_blockdata_transaction_txout_TxOut }
+    impl ferment::FFIConversionFrom<Vec<dashcore::blockdata::transaction::txout::TxOut>>
+        for Vec_dashcore_blockdata_transaction_txout_TxOut
+    {
+        unsafe fn ffi_from_const(
+            ffi: *const Vec_dashcore_blockdata_transaction_txout_TxOut,
+        ) -> Vec<dashcore::blockdata::transaction::txout::TxOut> {
+            let ffi_ref = &*ffi;
+            ferment::from_group(ffi_ref.count, ffi_ref.values, |o| {
+                < crate :: fermented :: types :: dashcore :: blockdata :: transaction :: txout :: dashcore_blockdata_transaction_txout_TxOut as ferment :: FFIConversionFrom < dashcore :: blockdata :: transaction :: txout :: TxOut >> :: ffi_from (* o)
+            })
+        }
+    }
+    impl ferment::FFIConversionTo<Vec<dashcore::blockdata::transaction::txout::TxOut>>
+        for Vec_dashcore_blockdata_transaction_txout_TxOut
+    {
+        unsafe fn ffi_to_const(
+            obj: Vec<dashcore::blockdata::transaction::txout::TxOut>,
+        ) -> *const Vec_dashcore_blockdata_transaction_txout_TxOut {
+            ferment::boxed(Self {
+                count: obj.len(),
+                values: ferment::to_group(obj.into_iter(), |o| {
+                    < crate :: fermented :: types :: dashcore :: blockdata :: transaction :: txout :: dashcore_blockdata_transaction_txout_TxOut as ferment :: FFIConversionTo < dashcore :: blockdata :: transaction :: txout :: TxOut >> :: ffi_to (o)
+                }),
+            })
+        }
+    }
+    impl Drop for Vec_dashcore_blockdata_transaction_txout_TxOut {
+        fn drop(&mut self) {
+            unsafe {
+                ferment::unbox_group(self.values, self.count, |o| ferment::unbox_any(o));
+            }
+        }
+    }
+    #[no_mangle]
+    pub unsafe extern "C" fn Vec_dashcore_blockdata_transaction_txout_TxOut_ctor(
+        count: usize,
+        values : * mut * mut crate :: fermented :: types :: dashcore :: blockdata :: transaction :: txout :: dashcore_blockdata_transaction_txout_TxOut,
+    ) -> *mut Vec_dashcore_blockdata_transaction_txout_TxOut {
+        ferment::boxed(Vec_dashcore_blockdata_transaction_txout_TxOut { count, values })
+    }
+    #[no_mangle]
+    pub unsafe extern "C" fn Vec_dashcore_blockdata_transaction_txout_TxOut_destroy(
+        ffi: *mut Vec_dashcore_blockdata_transaction_txout_TxOut,
+    ) {
+        ferment::unbox_any(ffi);
+    }
+    #[no_mangle]    pub unsafe extern "C" fn Vec_dashcore_blockdata_transaction_txout_TxOut_value_at_index (ffi : * const Vec_dashcore_blockdata_transaction_txout_TxOut , index : usize) -> * mut crate :: fermented :: types :: dashcore :: blockdata :: transaction :: txout :: dashcore_blockdata_transaction_txout_TxOut{
+        *(*ffi).values.add(index)
+    }
+    #[no_mangle]
+    pub unsafe extern "C" fn Vec_dashcore_blockdata_transaction_txout_TxOut_set_value_at_index(
+        ffi: *mut Vec_dashcore_blockdata_transaction_txout_TxOut,
+        index: usize,
+        value : * mut crate :: fermented :: types :: dashcore :: blockdata :: transaction :: txout :: dashcore_blockdata_transaction_txout_TxOut,
+    ) {
+        *(*ffi).values.add(index) = value
+    }
+    #[repr(C)]
+    #[derive(Clone)]
+    pub struct Arr_u8_96 {
+        pub count: usize,
+        pub values: *mut u8,
+    }
+    impl ferment::FFIConversionFrom<[u8; 96]> for Arr_u8_96 {
+        unsafe fn ffi_from_const(ffi: *const Arr_u8_96) -> [u8; 96] {
+            let ffi_ref = &*ffi;
+            TryFrom::<Vec<u8>>::try_from(ferment::from_group(ffi_ref.count, ffi_ref.values, |o| *o))
+                .unwrap()
+        }
+    }
+    impl ferment::FFIConversionTo<[u8; 96]> for Arr_u8_96 {
+        unsafe fn ffi_to_const(obj: [u8; 96]) -> *const Arr_u8_96 {
+            ferment::boxed(Self {
+                count: obj.len(),
+                values: ferment::to_group(obj.into_iter(), |o| o),
+            })
+        }
+    }
+    impl Drop for Arr_u8_96 {
+        fn drop(&mut self) {
+            unsafe {
+                ferment::unbox_group(self.values, self.count, |o| ferment::black_hole(o));
+            }
+        }
+    }
+    #[no_mangle]
+    pub unsafe extern "C" fn Arr_u8_96_ctor(count: usize, values: *mut u8) -> *mut Arr_u8_96 {
+        ferment::boxed(Arr_u8_96 { count, values })
+    }
+    #[no_mangle]
+    pub unsafe extern "C" fn Arr_u8_96_destroy(ffi: *mut Arr_u8_96) {
+        ferment::unbox_any(ffi);
+    }
+    #[no_mangle]
+    pub unsafe extern "C" fn Arr_u8_96_value_at_index(ffi: *const Arr_u8_96, index: usize) -> u8 {
+        *(*ffi).values.add(index)
+    }
+    #[no_mangle]
+    pub unsafe extern "C" fn Arr_u8_96_set_value_at_index(
+        ffi: *mut Arr_u8_96,
+        index: usize,
+        value: u8,
+    ) {
+        *(*ffi).values.add(index) = value
+    }
+    #[repr(C)]
+    #[derive(Clone)]
+    pub struct Arr_u8_20 {
+        pub count: usize,
+        pub values: *mut u8,
+    }
+    impl ferment::FFIConversionFrom<[u8; 20]> for Arr_u8_20 {
+        unsafe fn ffi_from_const(ffi: *const Arr_u8_20) -> [u8; 20] {
+            let ffi_ref = &*ffi;
+            TryFrom::<Vec<u8>>::try_from(ferment::from_group(ffi_ref.count, ffi_ref.values, |o| *o))
+                .unwrap()
+        }
+    }
+    impl ferment::FFIConversionTo<[u8; 20]> for Arr_u8_20 {
+        unsafe fn ffi_to_const(obj: [u8; 20]) -> *const Arr_u8_20 {
+            ferment::boxed(Self {
+                count: obj.len(),
+                values: ferment::to_group(obj.into_iter(), |o| o),
+            })
+        }
+    }
+    impl Drop for Arr_u8_20 {
+        fn drop(&mut self) {
+            unsafe {
+                ferment::unbox_group(self.values, self.count, |o| ferment::black_hole(o));
+            }
+        }
+    }
+    #[no_mangle]
+    pub unsafe extern "C" fn Arr_u8_20_ctor(count: usize, values: *mut u8) -> *mut Arr_u8_20 {
+        ferment::boxed(Arr_u8_20 { count, values })
+    }
+    #[no_mangle]
+    pub unsafe extern "C" fn Arr_u8_20_destroy(ffi: *mut Arr_u8_20) {
+        ferment::unbox_any(ffi);
+    }
+    #[no_mangle]
+    pub unsafe extern "C" fn Arr_u8_20_value_at_index(ffi: *const Arr_u8_20, index: usize) -> u8 {
+        *(*ffi).values.add(index)
+    }
+    #[no_mangle]
+    pub unsafe extern "C" fn Arr_u8_20_set_value_at_index(
+        ffi: *mut Arr_u8_20,
+        index: usize,
+        value: u8,
+    ) {
+        *(*ffi).values.add(index) = value
+    }
+    #[repr(C)]
+    #[derive(Clone)]
     pub struct Vec_u8 {
         pub count: usize,
         pub values: *mut u8,
@@ -4313,6 +4308,238 @@ pub mod generics {
     }
     #[no_mangle]
     pub unsafe extern "C" fn Vec_u8_set_value_at_index(ffi: *mut Vec_u8, index: usize, value: u8) {
+        *(*ffi).values.add(index) = value
+    }
+    #[repr(C)]
+    #[derive(Clone)]
+    pub struct Vec_bool {
+        pub count: usize,
+        pub values: *mut bool,
+    }
+    impl ferment::FFIConversionFrom<Vec<bool>> for Vec_bool {
+        unsafe fn ffi_from_const(ffi: *const Vec_bool) -> Vec<bool> {
+            let ffi_ref = &*ffi;
+            ferment::from_group(ffi_ref.count, ffi_ref.values, |o| *o)
+        }
+    }
+    impl ferment::FFIConversionTo<Vec<bool>> for Vec_bool {
+        unsafe fn ffi_to_const(obj: Vec<bool>) -> *const Vec_bool {
+            ferment::boxed(Self {
+                count: obj.len(),
+                values: ferment::to_group(obj.into_iter(), |o| o),
+            })
+        }
+    }
+    impl Drop for Vec_bool {
+        fn drop(&mut self) {
+            unsafe {
+                ferment::unbox_group(self.values, self.count, |o| ferment::black_hole(o));
+            }
+        }
+    }
+    #[no_mangle]
+    pub unsafe extern "C" fn Vec_bool_ctor(count: usize, values: *mut bool) -> *mut Vec_bool {
+        ferment::boxed(Vec_bool { count, values })
+    }
+    #[no_mangle]
+    pub unsafe extern "C" fn Vec_bool_destroy(ffi: *mut Vec_bool) {
+        ferment::unbox_any(ffi);
+    }
+    #[no_mangle]
+    pub unsafe extern "C" fn Vec_bool_value_at_index(ffi: *const Vec_bool, index: usize) -> bool {
+        *(*ffi).values.add(index)
+    }
+    #[no_mangle]
+    pub unsafe extern "C" fn Vec_bool_set_value_at_index(
+        ffi: *mut Vec_bool,
+        index: usize,
+        value: bool,
+    ) {
+        *(*ffi).values.add(index) = value
+    }
+    #[cfg(any(any(feature = "std")))]
+    #[repr(C)]
+    #[derive(Clone)]
+    #[cfg(any(any(feature = "std")))]
+    pub struct Vec_i32 {
+        pub count: usize,
+        pub values: *mut i32,
+    }
+    #[cfg(any(any(feature = "std")))]
+    #[cfg(any(any(feature = "std")))]
+    impl ferment::FFIConversionFrom<Vec<i32>> for Vec_i32 {
+        unsafe fn ffi_from_const(ffi: *const Vec_i32) -> Vec<i32> {
+            let ffi_ref = &*ffi;
+            ferment::from_group(ffi_ref.count, ffi_ref.values, |o| *o)
+        }
+    }
+    #[cfg(any(any(feature = "std")))]
+    #[cfg(any(any(feature = "std")))]
+    impl ferment::FFIConversionTo<Vec<i32>> for Vec_i32 {
+        unsafe fn ffi_to_const(obj: Vec<i32>) -> *const Vec_i32 {
+            ferment::boxed(Self {
+                count: obj.len(),
+                values: ferment::to_group(obj.into_iter(), |o| o),
+            })
+        }
+    }
+    #[cfg(any(any(feature = "std")))]
+    #[cfg(any(any(feature = "std")))]
+    impl Drop for Vec_i32 {
+        fn drop(&mut self) {
+            unsafe {
+                ferment::unbox_group(self.values, self.count, |o| ferment::black_hole(o));
+            }
+        }
+    }
+    #[cfg(any(any(feature = "std")))]
+    #[no_mangle]
+    pub unsafe extern "C" fn Vec_i32_ctor(count: usize, values: *mut i32) -> *mut Vec_i32 {
+        ferment::boxed(Vec_i32 { count, values })
+    }
+    #[cfg(any(any(feature = "std")))]
+    #[no_mangle]
+    pub unsafe extern "C" fn Vec_i32_destroy(ffi: *mut Vec_i32) {
+        ferment::unbox_any(ffi);
+    }
+    #[cfg(any(any(feature = "std")))]
+    #[no_mangle]
+    pub unsafe extern "C" fn Vec_i32_value_at_index(ffi: *const Vec_i32, index: usize) -> i32 {
+        *(*ffi).values.add(index)
+    }
+    #[cfg(any(any(feature = "std")))]
+    #[no_mangle]
+    pub unsafe extern "C" fn Vec_i32_set_value_at_index(
+        ffi: *mut Vec_i32,
+        index: usize,
+        value: i32,
+    ) {
+        *(*ffi).values.add(index) = value
+    }
+    #[repr(C)]
+    #[derive(Clone)]
+    pub struct std_vec_Vec_dashcore_transaction_outpoint_OutPoint {
+        pub count: usize,
+        pub values: *mut *mut dashcore::transaction::outpoint::OutPoint,
+    }
+    impl ferment::FFIConversionFrom<std::vec::Vec<dashcore::transaction::outpoint::OutPoint>>
+        for std_vec_Vec_dashcore_transaction_outpoint_OutPoint
+    {
+        unsafe fn ffi_from_const(
+            ffi: *const std_vec_Vec_dashcore_transaction_outpoint_OutPoint,
+        ) -> std::vec::Vec<dashcore::transaction::outpoint::OutPoint> {
+            let ffi_ref = &*ffi;
+            ferment::from_group(ffi_ref.count, ffi_ref.values, |o| std::ptr::read(*o))
+        }
+    }
+    impl ferment::FFIConversionTo<std::vec::Vec<dashcore::transaction::outpoint::OutPoint>>
+        for std_vec_Vec_dashcore_transaction_outpoint_OutPoint
+    {
+        unsafe fn ffi_to_const(
+            obj: std::vec::Vec<dashcore::transaction::outpoint::OutPoint>,
+        ) -> *const std_vec_Vec_dashcore_transaction_outpoint_OutPoint {
+            ferment::boxed(Self {
+                count: obj.len(),
+                values: ferment::to_group(obj.into_iter(), |o| ferment::boxed(o)),
+            })
+        }
+    }
+    impl Drop for std_vec_Vec_dashcore_transaction_outpoint_OutPoint {
+        fn drop(&mut self) {
+            unsafe {
+                ferment::unbox_group(self.values, self.count, |o| ferment::unbox_any(o));
+            }
+        }
+    }
+    #[no_mangle]
+    pub unsafe extern "C" fn std_vec_Vec_dashcore_transaction_outpoint_OutPoint_ctor(
+        count: usize,
+        values: *mut *mut dashcore::transaction::outpoint::OutPoint,
+    ) -> *mut std_vec_Vec_dashcore_transaction_outpoint_OutPoint {
+        ferment::boxed(std_vec_Vec_dashcore_transaction_outpoint_OutPoint { count, values })
+    }
+    #[no_mangle]
+    pub unsafe extern "C" fn std_vec_Vec_dashcore_transaction_outpoint_OutPoint_destroy(
+        ffi: *mut std_vec_Vec_dashcore_transaction_outpoint_OutPoint,
+    ) {
+        ferment::unbox_any(ffi);
+    }
+    #[no_mangle]
+    pub unsafe extern "C" fn std_vec_Vec_dashcore_transaction_outpoint_OutPoint_value_at_index(
+        ffi: *const std_vec_Vec_dashcore_transaction_outpoint_OutPoint,
+        index: usize,
+    ) -> *mut dashcore::transaction::outpoint::OutPoint {
+        *(*ffi).values.add(index)
+    }
+    #[no_mangle]
+    pub unsafe extern "C" fn std_vec_Vec_dashcore_transaction_outpoint_OutPoint_set_value_at_index(
+        ffi: *mut std_vec_Vec_dashcore_transaction_outpoint_OutPoint,
+        index: usize,
+        value: *mut dashcore::transaction::outpoint::OutPoint,
+    ) {
+        *(*ffi).values.add(index) = value
+    }
+    #[repr(C)]
+    #[derive(Clone)]
+    pub struct Vec_dashcore_sml_llmq_type_DKGWindow {
+        pub count: usize,
+        pub values: *mut *mut dashcore::sml::llmq_type::DKGWindow,
+    }
+    impl ferment::FFIConversionFrom<Vec<dashcore::sml::llmq_type::DKGWindow>>
+        for Vec_dashcore_sml_llmq_type_DKGWindow
+    {
+        unsafe fn ffi_from_const(
+            ffi: *const Vec_dashcore_sml_llmq_type_DKGWindow,
+        ) -> Vec<dashcore::sml::llmq_type::DKGWindow> {
+            let ffi_ref = &*ffi;
+            ferment::from_group(ffi_ref.count, ffi_ref.values, |o| std::ptr::read(*o))
+        }
+    }
+    impl ferment::FFIConversionTo<Vec<dashcore::sml::llmq_type::DKGWindow>>
+        for Vec_dashcore_sml_llmq_type_DKGWindow
+    {
+        unsafe fn ffi_to_const(
+            obj: Vec<dashcore::sml::llmq_type::DKGWindow>,
+        ) -> *const Vec_dashcore_sml_llmq_type_DKGWindow {
+            ferment::boxed(Self {
+                count: obj.len(),
+                values: ferment::to_group(obj.into_iter(), |o| ferment::boxed(o)),
+            })
+        }
+    }
+    impl Drop for Vec_dashcore_sml_llmq_type_DKGWindow {
+        fn drop(&mut self) {
+            unsafe {
+                ferment::unbox_group(self.values, self.count, |o| ferment::unbox_any(o));
+            }
+        }
+    }
+    #[no_mangle]
+    pub unsafe extern "C" fn Vec_dashcore_sml_llmq_type_DKGWindow_ctor(
+        count: usize,
+        values: *mut *mut dashcore::sml::llmq_type::DKGWindow,
+    ) -> *mut Vec_dashcore_sml_llmq_type_DKGWindow {
+        ferment::boxed(Vec_dashcore_sml_llmq_type_DKGWindow { count, values })
+    }
+    #[no_mangle]
+    pub unsafe extern "C" fn Vec_dashcore_sml_llmq_type_DKGWindow_destroy(
+        ffi: *mut Vec_dashcore_sml_llmq_type_DKGWindow,
+    ) {
+        ferment::unbox_any(ffi);
+    }
+    #[no_mangle]
+    pub unsafe extern "C" fn Vec_dashcore_sml_llmq_type_DKGWindow_value_at_index(
+        ffi: *const Vec_dashcore_sml_llmq_type_DKGWindow,
+        index: usize,
+    ) -> *mut dashcore::sml::llmq_type::DKGWindow {
+        *(*ffi).values.add(index)
+    }
+    #[no_mangle]
+    pub unsafe extern "C" fn Vec_dashcore_sml_llmq_type_DKGWindow_set_value_at_index(
+        ffi: *mut Vec_dashcore_sml_llmq_type_DKGWindow,
+        index: usize,
+        value: *mut dashcore::sml::llmq_type::DKGWindow,
+    ) {
         *(*ffi).values.add(index) = value
     }
     #[repr(C)]
@@ -4380,48 +4607,64 @@ pub mod generics {
     }
     #[repr(C)]
     #[derive(Clone)]
-    pub struct Vec_bool {
+    pub struct Vec_dashcore_transaction_txout_TxOut {
         pub count: usize,
-        pub values: *mut bool,
+        pub values: *mut *mut dashcore::transaction::txout::TxOut,
     }
-    impl ferment::FFIConversionFrom<Vec<bool>> for Vec_bool {
-        unsafe fn ffi_from_const(ffi: *const Vec_bool) -> Vec<bool> {
+    impl ferment::FFIConversionFrom<Vec<dashcore::transaction::txout::TxOut>>
+        for Vec_dashcore_transaction_txout_TxOut
+    {
+        unsafe fn ffi_from_const(
+            ffi: *const Vec_dashcore_transaction_txout_TxOut,
+        ) -> Vec<dashcore::transaction::txout::TxOut> {
             let ffi_ref = &*ffi;
-            ferment::from_group(ffi_ref.count, ffi_ref.values, |o| *o)
+            ferment::from_group(ffi_ref.count, ffi_ref.values, |o| std::ptr::read(*o))
         }
     }
-    impl ferment::FFIConversionTo<Vec<bool>> for Vec_bool {
-        unsafe fn ffi_to_const(obj: Vec<bool>) -> *const Vec_bool {
+    impl ferment::FFIConversionTo<Vec<dashcore::transaction::txout::TxOut>>
+        for Vec_dashcore_transaction_txout_TxOut
+    {
+        unsafe fn ffi_to_const(
+            obj: Vec<dashcore::transaction::txout::TxOut>,
+        ) -> *const Vec_dashcore_transaction_txout_TxOut {
             ferment::boxed(Self {
                 count: obj.len(),
-                values: ferment::to_group(obj.into_iter(), |o| o),
+                values: ferment::to_group(obj.into_iter(), |o| ferment::boxed(o)),
             })
         }
     }
-    impl Drop for Vec_bool {
+    impl Drop for Vec_dashcore_transaction_txout_TxOut {
         fn drop(&mut self) {
             unsafe {
-                ferment::unbox_group(self.values, self.count, |o| ferment::black_hole(o));
+                ferment::unbox_group(self.values, self.count, |o| ferment::unbox_any(o));
             }
         }
     }
     #[no_mangle]
-    pub unsafe extern "C" fn Vec_bool_ctor(count: usize, values: *mut bool) -> *mut Vec_bool {
-        ferment::boxed(Vec_bool { count, values })
+    pub unsafe extern "C" fn Vec_dashcore_transaction_txout_TxOut_ctor(
+        count: usize,
+        values: *mut *mut dashcore::transaction::txout::TxOut,
+    ) -> *mut Vec_dashcore_transaction_txout_TxOut {
+        ferment::boxed(Vec_dashcore_transaction_txout_TxOut { count, values })
     }
     #[no_mangle]
-    pub unsafe extern "C" fn Vec_bool_destroy(ffi: *mut Vec_bool) {
+    pub unsafe extern "C" fn Vec_dashcore_transaction_txout_TxOut_destroy(
+        ffi: *mut Vec_dashcore_transaction_txout_TxOut,
+    ) {
         ferment::unbox_any(ffi);
     }
     #[no_mangle]
-    pub unsafe extern "C" fn Vec_bool_value_at_index(ffi: *const Vec_bool, index: usize) -> bool {
+    pub unsafe extern "C" fn Vec_dashcore_transaction_txout_TxOut_value_at_index(
+        ffi: *const Vec_dashcore_transaction_txout_TxOut,
+        index: usize,
+    ) -> *mut dashcore::transaction::txout::TxOut {
         *(*ffi).values.add(index)
     }
     #[no_mangle]
-    pub unsafe extern "C" fn Vec_bool_set_value_at_index(
-        ffi: *mut Vec_bool,
+    pub unsafe extern "C" fn Vec_dashcore_transaction_txout_TxOut_set_value_at_index(
+        ffi: *mut Vec_dashcore_transaction_txout_TxOut,
         index: usize,
-        value: bool,
+        value: *mut dashcore::transaction::txout::TxOut,
     ) {
         *(*ffi).values.add(index) = value
     }
@@ -4565,117 +4808,6 @@ pub mod generics {
     }
     #[repr(C)]
     #[derive(Clone)]
-    pub struct Arr_u8_96 {
-        pub count: usize,
-        pub values: *mut u8,
-    }
-    impl ferment::FFIConversionFrom<[u8; 96]> for Arr_u8_96 {
-        unsafe fn ffi_from_const(ffi: *const Arr_u8_96) -> [u8; 96] {
-            let ffi_ref = &*ffi;
-            TryFrom::<Vec<u8>>::try_from(ferment::from_group(ffi_ref.count, ffi_ref.values, |o| *o))
-                .unwrap()
-        }
-    }
-    impl ferment::FFIConversionTo<[u8; 96]> for Arr_u8_96 {
-        unsafe fn ffi_to_const(obj: [u8; 96]) -> *const Arr_u8_96 {
-            ferment::boxed(Self {
-                count: obj.len(),
-                values: ferment::to_group(obj.into_iter(), |o| o),
-            })
-        }
-    }
-    impl Drop for Arr_u8_96 {
-        fn drop(&mut self) {
-            unsafe {
-                ferment::unbox_group(self.values, self.count, |o| ferment::black_hole(o));
-            }
-        }
-    }
-    #[no_mangle]
-    pub unsafe extern "C" fn Arr_u8_96_ctor(count: usize, values: *mut u8) -> *mut Arr_u8_96 {
-        ferment::boxed(Arr_u8_96 { count, values })
-    }
-    #[no_mangle]
-    pub unsafe extern "C" fn Arr_u8_96_destroy(ffi: *mut Arr_u8_96) {
-        ferment::unbox_any(ffi);
-    }
-    #[no_mangle]
-    pub unsafe extern "C" fn Arr_u8_96_value_at_index(ffi: *const Arr_u8_96, index: usize) -> u8 {
-        *(*ffi).values.add(index)
-    }
-    #[no_mangle]
-    pub unsafe extern "C" fn Arr_u8_96_set_value_at_index(
-        ffi: *mut Arr_u8_96,
-        index: usize,
-        value: u8,
-    ) {
-        *(*ffi).values.add(index) = value
-    }
-    #[repr(C)]
-    #[derive(Clone)]
-    pub struct Vec_dashcore_sml_llmq_type_DKGWindow {
-        pub count: usize,
-        pub values: *mut *mut dashcore::sml::llmq_type::DKGWindow,
-    }
-    impl ferment::FFIConversionFrom<Vec<dashcore::sml::llmq_type::DKGWindow>>
-        for Vec_dashcore_sml_llmq_type_DKGWindow
-    {
-        unsafe fn ffi_from_const(
-            ffi: *const Vec_dashcore_sml_llmq_type_DKGWindow,
-        ) -> Vec<dashcore::sml::llmq_type::DKGWindow> {
-            let ffi_ref = &*ffi;
-            ferment::from_group(ffi_ref.count, ffi_ref.values, |o| std::ptr::read(*o))
-        }
-    }
-    impl ferment::FFIConversionTo<Vec<dashcore::sml::llmq_type::DKGWindow>>
-        for Vec_dashcore_sml_llmq_type_DKGWindow
-    {
-        unsafe fn ffi_to_const(
-            obj: Vec<dashcore::sml::llmq_type::DKGWindow>,
-        ) -> *const Vec_dashcore_sml_llmq_type_DKGWindow {
-            ferment::boxed(Self {
-                count: obj.len(),
-                values: ferment::to_group(obj.into_iter(), |o| ferment::boxed(o)),
-            })
-        }
-    }
-    impl Drop for Vec_dashcore_sml_llmq_type_DKGWindow {
-        fn drop(&mut self) {
-            unsafe {
-                ferment::unbox_group(self.values, self.count, |o| ferment::unbox_any(o));
-            }
-        }
-    }
-    #[no_mangle]
-    pub unsafe extern "C" fn Vec_dashcore_sml_llmq_type_DKGWindow_ctor(
-        count: usize,
-        values: *mut *mut dashcore::sml::llmq_type::DKGWindow,
-    ) -> *mut Vec_dashcore_sml_llmq_type_DKGWindow {
-        ferment::boxed(Vec_dashcore_sml_llmq_type_DKGWindow { count, values })
-    }
-    #[no_mangle]
-    pub unsafe extern "C" fn Vec_dashcore_sml_llmq_type_DKGWindow_destroy(
-        ffi: *mut Vec_dashcore_sml_llmq_type_DKGWindow,
-    ) {
-        ferment::unbox_any(ffi);
-    }
-    #[no_mangle]
-    pub unsafe extern "C" fn Vec_dashcore_sml_llmq_type_DKGWindow_value_at_index(
-        ffi: *const Vec_dashcore_sml_llmq_type_DKGWindow,
-        index: usize,
-    ) -> *mut dashcore::sml::llmq_type::DKGWindow {
-        *(*ffi).values.add(index)
-    }
-    #[no_mangle]
-    pub unsafe extern "C" fn Vec_dashcore_sml_llmq_type_DKGWindow_set_value_at_index(
-        ffi: *mut Vec_dashcore_sml_llmq_type_DKGWindow,
-        index: usize,
-        value: *mut dashcore::sml::llmq_type::DKGWindow,
-    ) {
-        *(*ffi).values.add(index) = value
-    }
-    #[repr(C)]
-    #[derive(Clone)]
     pub struct Arr_u8_48 {
         pub count: usize,
         pub values: *mut u8,
@@ -4717,359 +4849,6 @@ pub mod generics {
     #[no_mangle]
     pub unsafe extern "C" fn Arr_u8_48_set_value_at_index(
         ffi: *mut Arr_u8_48,
-        index: usize,
-        value: u8,
-    ) {
-        *(*ffi).values.add(index) = value
-    }
-    #[repr(C)]
-    #[derive(Clone)]
-    pub struct std_vec_Vec_dashcore_transaction_outpoint_OutPoint {
-        pub count: usize,
-        pub values: *mut *mut dashcore::transaction::outpoint::OutPoint,
-    }
-    impl ferment::FFIConversionFrom<std::vec::Vec<dashcore::transaction::outpoint::OutPoint>>
-        for std_vec_Vec_dashcore_transaction_outpoint_OutPoint
-    {
-        unsafe fn ffi_from_const(
-            ffi: *const std_vec_Vec_dashcore_transaction_outpoint_OutPoint,
-        ) -> std::vec::Vec<dashcore::transaction::outpoint::OutPoint> {
-            let ffi_ref = &*ffi;
-            ferment::from_group(ffi_ref.count, ffi_ref.values, |o| std::ptr::read(*o))
-        }
-    }
-    impl ferment::FFIConversionTo<std::vec::Vec<dashcore::transaction::outpoint::OutPoint>>
-        for std_vec_Vec_dashcore_transaction_outpoint_OutPoint
-    {
-        unsafe fn ffi_to_const(
-            obj: std::vec::Vec<dashcore::transaction::outpoint::OutPoint>,
-        ) -> *const std_vec_Vec_dashcore_transaction_outpoint_OutPoint {
-            ferment::boxed(Self {
-                count: obj.len(),
-                values: ferment::to_group(obj.into_iter(), |o| ferment::boxed(o)),
-            })
-        }
-    }
-    impl Drop for std_vec_Vec_dashcore_transaction_outpoint_OutPoint {
-        fn drop(&mut self) {
-            unsafe {
-                ferment::unbox_group(self.values, self.count, |o| ferment::unbox_any(o));
-            }
-        }
-    }
-    #[no_mangle]
-    pub unsafe extern "C" fn std_vec_Vec_dashcore_transaction_outpoint_OutPoint_ctor(
-        count: usize,
-        values: *mut *mut dashcore::transaction::outpoint::OutPoint,
-    ) -> *mut std_vec_Vec_dashcore_transaction_outpoint_OutPoint {
-        ferment::boxed(std_vec_Vec_dashcore_transaction_outpoint_OutPoint { count, values })
-    }
-    #[no_mangle]
-    pub unsafe extern "C" fn std_vec_Vec_dashcore_transaction_outpoint_OutPoint_destroy(
-        ffi: *mut std_vec_Vec_dashcore_transaction_outpoint_OutPoint,
-    ) {
-        ferment::unbox_any(ffi);
-    }
-    #[no_mangle]
-    pub unsafe extern "C" fn std_vec_Vec_dashcore_transaction_outpoint_OutPoint_value_at_index(
-        ffi: *const std_vec_Vec_dashcore_transaction_outpoint_OutPoint,
-        index: usize,
-    ) -> *mut dashcore::transaction::outpoint::OutPoint {
-        *(*ffi).values.add(index)
-    }
-    #[no_mangle]
-    pub unsafe extern "C" fn std_vec_Vec_dashcore_transaction_outpoint_OutPoint_set_value_at_index(
-        ffi: *mut std_vec_Vec_dashcore_transaction_outpoint_OutPoint,
-        index: usize,
-        value: *mut dashcore::transaction::outpoint::OutPoint,
-    ) {
-        *(*ffi).values.add(index) = value
-    }
-    #[repr(C)]
-    #[derive(Clone)]
-    pub struct Vec_dashcore_transaction_txout_TxOut {
-        pub count: usize,
-        pub values: *mut *mut dashcore::transaction::txout::TxOut,
-    }
-    impl ferment::FFIConversionFrom<Vec<dashcore::transaction::txout::TxOut>>
-        for Vec_dashcore_transaction_txout_TxOut
-    {
-        unsafe fn ffi_from_const(
-            ffi: *const Vec_dashcore_transaction_txout_TxOut,
-        ) -> Vec<dashcore::transaction::txout::TxOut> {
-            let ffi_ref = &*ffi;
-            ferment::from_group(ffi_ref.count, ffi_ref.values, |o| std::ptr::read(*o))
-        }
-    }
-    impl ferment::FFIConversionTo<Vec<dashcore::transaction::txout::TxOut>>
-        for Vec_dashcore_transaction_txout_TxOut
-    {
-        unsafe fn ffi_to_const(
-            obj: Vec<dashcore::transaction::txout::TxOut>,
-        ) -> *const Vec_dashcore_transaction_txout_TxOut {
-            ferment::boxed(Self {
-                count: obj.len(),
-                values: ferment::to_group(obj.into_iter(), |o| ferment::boxed(o)),
-            })
-        }
-    }
-    impl Drop for Vec_dashcore_transaction_txout_TxOut {
-        fn drop(&mut self) {
-            unsafe {
-                ferment::unbox_group(self.values, self.count, |o| ferment::unbox_any(o));
-            }
-        }
-    }
-    #[no_mangle]
-    pub unsafe extern "C" fn Vec_dashcore_transaction_txout_TxOut_ctor(
-        count: usize,
-        values: *mut *mut dashcore::transaction::txout::TxOut,
-    ) -> *mut Vec_dashcore_transaction_txout_TxOut {
-        ferment::boxed(Vec_dashcore_transaction_txout_TxOut { count, values })
-    }
-    #[no_mangle]
-    pub unsafe extern "C" fn Vec_dashcore_transaction_txout_TxOut_destroy(
-        ffi: *mut Vec_dashcore_transaction_txout_TxOut,
-    ) {
-        ferment::unbox_any(ffi);
-    }
-    #[no_mangle]
-    pub unsafe extern "C" fn Vec_dashcore_transaction_txout_TxOut_value_at_index(
-        ffi: *const Vec_dashcore_transaction_txout_TxOut,
-        index: usize,
-    ) -> *mut dashcore::transaction::txout::TxOut {
-        *(*ffi).values.add(index)
-    }
-    #[no_mangle]
-    pub unsafe extern "C" fn Vec_dashcore_transaction_txout_TxOut_set_value_at_index(
-        ffi: *mut Vec_dashcore_transaction_txout_TxOut,
-        index: usize,
-        value: *mut dashcore::transaction::txout::TxOut,
-    ) {
-        *(*ffi).values.add(index) = value
-    }
-    #[repr(C)]
-    #[derive(Clone)]
-    pub struct Vec_dashcore_blockdata_transaction_txin_TxIn { pub count : usize , pub values : * mut * mut crate :: fermented :: types :: dashcore :: blockdata :: transaction :: txin :: dashcore_blockdata_transaction_txin_TxIn }
-    impl ferment::FFIConversionFrom<Vec<dashcore::blockdata::transaction::txin::TxIn>>
-        for Vec_dashcore_blockdata_transaction_txin_TxIn
-    {
-        unsafe fn ffi_from_const(
-            ffi: *const Vec_dashcore_blockdata_transaction_txin_TxIn,
-        ) -> Vec<dashcore::blockdata::transaction::txin::TxIn> {
-            let ffi_ref = &*ffi;
-            ferment::from_group(ffi_ref.count, ffi_ref.values, |o| {
-                < crate :: fermented :: types :: dashcore :: blockdata :: transaction :: txin :: dashcore_blockdata_transaction_txin_TxIn as ferment :: FFIConversionFrom < dashcore :: blockdata :: transaction :: txin :: TxIn >> :: ffi_from (* o)
-            })
-        }
-    }
-    impl ferment::FFIConversionTo<Vec<dashcore::blockdata::transaction::txin::TxIn>>
-        for Vec_dashcore_blockdata_transaction_txin_TxIn
-    {
-        unsafe fn ffi_to_const(
-            obj: Vec<dashcore::blockdata::transaction::txin::TxIn>,
-        ) -> *const Vec_dashcore_blockdata_transaction_txin_TxIn {
-            ferment::boxed(Self {
-                count: obj.len(),
-                values: ferment::to_group(obj.into_iter(), |o| {
-                    < crate :: fermented :: types :: dashcore :: blockdata :: transaction :: txin :: dashcore_blockdata_transaction_txin_TxIn as ferment :: FFIConversionTo < dashcore :: blockdata :: transaction :: txin :: TxIn >> :: ffi_to (o)
-                }),
-            })
-        }
-    }
-    impl Drop for Vec_dashcore_blockdata_transaction_txin_TxIn {
-        fn drop(&mut self) {
-            unsafe {
-                ferment::unbox_group(self.values, self.count, |o| ferment::unbox_any(o));
-            }
-        }
-    }
-    #[no_mangle]
-    pub unsafe extern "C" fn Vec_dashcore_blockdata_transaction_txin_TxIn_ctor(
-        count: usize,
-        values : * mut * mut crate :: fermented :: types :: dashcore :: blockdata :: transaction :: txin :: dashcore_blockdata_transaction_txin_TxIn,
-    ) -> *mut Vec_dashcore_blockdata_transaction_txin_TxIn {
-        ferment::boxed(Vec_dashcore_blockdata_transaction_txin_TxIn { count, values })
-    }
-    #[no_mangle]
-    pub unsafe extern "C" fn Vec_dashcore_blockdata_transaction_txin_TxIn_destroy(
-        ffi: *mut Vec_dashcore_blockdata_transaction_txin_TxIn,
-    ) {
-        ferment::unbox_any(ffi);
-    }
-    #[no_mangle]    pub unsafe extern "C" fn Vec_dashcore_blockdata_transaction_txin_TxIn_value_at_index (ffi : * const Vec_dashcore_blockdata_transaction_txin_TxIn , index : usize) -> * mut crate :: fermented :: types :: dashcore :: blockdata :: transaction :: txin :: dashcore_blockdata_transaction_txin_TxIn{
-        *(*ffi).values.add(index)
-    }
-    #[no_mangle]
-    pub unsafe extern "C" fn Vec_dashcore_blockdata_transaction_txin_TxIn_set_value_at_index(
-        ffi: *mut Vec_dashcore_blockdata_transaction_txin_TxIn,
-        index: usize,
-        value : * mut crate :: fermented :: types :: dashcore :: blockdata :: transaction :: txin :: dashcore_blockdata_transaction_txin_TxIn,
-    ) {
-        *(*ffi).values.add(index) = value
-    }
-    #[repr(C)]
-    #[derive(Clone)]
-    pub struct Vec_dashcore_blockdata_transaction_txout_TxOut { pub count : usize , pub values : * mut * mut crate :: fermented :: types :: dashcore :: blockdata :: transaction :: txout :: dashcore_blockdata_transaction_txout_TxOut }
-    impl ferment::FFIConversionFrom<Vec<dashcore::blockdata::transaction::txout::TxOut>>
-        for Vec_dashcore_blockdata_transaction_txout_TxOut
-    {
-        unsafe fn ffi_from_const(
-            ffi: *const Vec_dashcore_blockdata_transaction_txout_TxOut,
-        ) -> Vec<dashcore::blockdata::transaction::txout::TxOut> {
-            let ffi_ref = &*ffi;
-            ferment::from_group(ffi_ref.count, ffi_ref.values, |o| {
-                < crate :: fermented :: types :: dashcore :: blockdata :: transaction :: txout :: dashcore_blockdata_transaction_txout_TxOut as ferment :: FFIConversionFrom < dashcore :: blockdata :: transaction :: txout :: TxOut >> :: ffi_from (* o)
-            })
-        }
-    }
-    impl ferment::FFIConversionTo<Vec<dashcore::blockdata::transaction::txout::TxOut>>
-        for Vec_dashcore_blockdata_transaction_txout_TxOut
-    {
-        unsafe fn ffi_to_const(
-            obj: Vec<dashcore::blockdata::transaction::txout::TxOut>,
-        ) -> *const Vec_dashcore_blockdata_transaction_txout_TxOut {
-            ferment::boxed(Self {
-                count: obj.len(),
-                values: ferment::to_group(obj.into_iter(), |o| {
-                    < crate :: fermented :: types :: dashcore :: blockdata :: transaction :: txout :: dashcore_blockdata_transaction_txout_TxOut as ferment :: FFIConversionTo < dashcore :: blockdata :: transaction :: txout :: TxOut >> :: ffi_to (o)
-                }),
-            })
-        }
-    }
-    impl Drop for Vec_dashcore_blockdata_transaction_txout_TxOut {
-        fn drop(&mut self) {
-            unsafe {
-                ferment::unbox_group(self.values, self.count, |o| ferment::unbox_any(o));
-            }
-        }
-    }
-    #[no_mangle]
-    pub unsafe extern "C" fn Vec_dashcore_blockdata_transaction_txout_TxOut_ctor(
-        count: usize,
-        values : * mut * mut crate :: fermented :: types :: dashcore :: blockdata :: transaction :: txout :: dashcore_blockdata_transaction_txout_TxOut,
-    ) -> *mut Vec_dashcore_blockdata_transaction_txout_TxOut {
-        ferment::boxed(Vec_dashcore_blockdata_transaction_txout_TxOut { count, values })
-    }
-    #[no_mangle]
-    pub unsafe extern "C" fn Vec_dashcore_blockdata_transaction_txout_TxOut_destroy(
-        ffi: *mut Vec_dashcore_blockdata_transaction_txout_TxOut,
-    ) {
-        ferment::unbox_any(ffi);
-    }
-    #[no_mangle]    pub unsafe extern "C" fn Vec_dashcore_blockdata_transaction_txout_TxOut_value_at_index (ffi : * const Vec_dashcore_blockdata_transaction_txout_TxOut , index : usize) -> * mut crate :: fermented :: types :: dashcore :: blockdata :: transaction :: txout :: dashcore_blockdata_transaction_txout_TxOut{
-        *(*ffi).values.add(index)
-    }
-    #[no_mangle]
-    pub unsafe extern "C" fn Vec_dashcore_blockdata_transaction_txout_TxOut_set_value_at_index(
-        ffi: *mut Vec_dashcore_blockdata_transaction_txout_TxOut,
-        index: usize,
-        value : * mut crate :: fermented :: types :: dashcore :: blockdata :: transaction :: txout :: dashcore_blockdata_transaction_txout_TxOut,
-    ) {
-        *(*ffi).values.add(index) = value
-    }
-    #[cfg(any(any(feature = "std")))]
-    #[repr(C)]
-    #[derive(Clone)]
-    #[cfg(any(any(feature = "std")))]
-    pub struct Vec_i32 {
-        pub count: usize,
-        pub values: *mut i32,
-    }
-    #[cfg(any(any(feature = "std")))]
-    #[cfg(any(any(feature = "std")))]
-    impl ferment::FFIConversionFrom<Vec<i32>> for Vec_i32 {
-        unsafe fn ffi_from_const(ffi: *const Vec_i32) -> Vec<i32> {
-            let ffi_ref = &*ffi;
-            ferment::from_group(ffi_ref.count, ffi_ref.values, |o| *o)
-        }
-    }
-    #[cfg(any(any(feature = "std")))]
-    #[cfg(any(any(feature = "std")))]
-    impl ferment::FFIConversionTo<Vec<i32>> for Vec_i32 {
-        unsafe fn ffi_to_const(obj: Vec<i32>) -> *const Vec_i32 {
-            ferment::boxed(Self {
-                count: obj.len(),
-                values: ferment::to_group(obj.into_iter(), |o| o),
-            })
-        }
-    }
-    #[cfg(any(any(feature = "std")))]
-    #[cfg(any(any(feature = "std")))]
-    impl Drop for Vec_i32 {
-        fn drop(&mut self) {
-            unsafe {
-                ferment::unbox_group(self.values, self.count, |o| ferment::black_hole(o));
-            }
-        }
-    }
-    #[cfg(any(any(feature = "std")))]
-    #[no_mangle]
-    pub unsafe extern "C" fn Vec_i32_ctor(count: usize, values: *mut i32) -> *mut Vec_i32 {
-        ferment::boxed(Vec_i32 { count, values })
-    }
-    #[cfg(any(any(feature = "std")))]
-    #[no_mangle]
-    pub unsafe extern "C" fn Vec_i32_destroy(ffi: *mut Vec_i32) {
-        ferment::unbox_any(ffi);
-    }
-    #[cfg(any(any(feature = "std")))]
-    #[no_mangle]
-    pub unsafe extern "C" fn Vec_i32_value_at_index(ffi: *const Vec_i32, index: usize) -> i32 {
-        *(*ffi).values.add(index)
-    }
-    #[cfg(any(any(feature = "std")))]
-    #[no_mangle]
-    pub unsafe extern "C" fn Vec_i32_set_value_at_index(
-        ffi: *mut Vec_i32,
-        index: usize,
-        value: i32,
-    ) {
-        *(*ffi).values.add(index) = value
-    }
-    #[repr(C)]
-    #[derive(Clone)]
-    pub struct Arr_u8_20 {
-        pub count: usize,
-        pub values: *mut u8,
-    }
-    impl ferment::FFIConversionFrom<[u8; 20]> for Arr_u8_20 {
-        unsafe fn ffi_from_const(ffi: *const Arr_u8_20) -> [u8; 20] {
-            let ffi_ref = &*ffi;
-            TryFrom::<Vec<u8>>::try_from(ferment::from_group(ffi_ref.count, ffi_ref.values, |o| *o))
-                .unwrap()
-        }
-    }
-    impl ferment::FFIConversionTo<[u8; 20]> for Arr_u8_20 {
-        unsafe fn ffi_to_const(obj: [u8; 20]) -> *const Arr_u8_20 {
-            ferment::boxed(Self {
-                count: obj.len(),
-                values: ferment::to_group(obj.into_iter(), |o| o),
-            })
-        }
-    }
-    impl Drop for Arr_u8_20 {
-        fn drop(&mut self) {
-            unsafe {
-                ferment::unbox_group(self.values, self.count, |o| ferment::black_hole(o));
-            }
-        }
-    }
-    #[no_mangle]
-    pub unsafe extern "C" fn Arr_u8_20_ctor(count: usize, values: *mut u8) -> *mut Arr_u8_20 {
-        ferment::boxed(Arr_u8_20 { count, values })
-    }
-    #[no_mangle]
-    pub unsafe extern "C" fn Arr_u8_20_destroy(ffi: *mut Arr_u8_20) {
-        ferment::unbox_any(ffi);
-    }
-    #[no_mangle]
-    pub unsafe extern "C" fn Arr_u8_20_value_at_index(ffi: *const Arr_u8_20, index: usize) -> u8 {
-        *(*ffi).values.add(index)
-    }
-    #[no_mangle]
-    pub unsafe extern "C" fn Arr_u8_20_set_value_at_index(
-        ffi: *mut Arr_u8_20,
         index: usize,
         value: u8,
     ) {

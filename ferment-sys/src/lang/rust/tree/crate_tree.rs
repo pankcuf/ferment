@@ -21,7 +21,7 @@ impl SourceFermentable<RustFermentate> for CrateTree {
         RustFermentate::Root {
             mods: Depunctuated::from_iter([
                 RustFermentate::types(attrs, reg_conversions),
-                RustFermentate::generics(attrs, generic_imports, generic_conversions)
+                RustFermentate::generics(attrs, Some(generic_imports), generic_conversions)
             ])
         }
     }
