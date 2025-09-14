@@ -76,6 +76,9 @@ impl ScopeChain {
         let path = crate_ident.to_path();
         Self::crate_root_with(attrs, crate_ident, path)
     }
+    pub fn crate_root_with_ident_attr_less(crate_ident: Ident) -> Self {
+        Self::crate_root_with_ident(crate_ident, vec![])
+    }
     pub fn crate_root(crate_ident: Ident, attrs: Vec<Attribute>) -> Self {
         Self::crate_root_with(attrs, crate_ident, parse_quote!(crate))
     }
@@ -84,7 +87,7 @@ impl ScopeChain {
         Self::new_mod(crate_ident, Scope::empty(parent_scope.self_path_ref().joined(name)), parent_scope, attrs)
     }
     pub fn child_mod_attr_less(crate_ident: Ident, name: &Ident, parent_scope: &ScopeChain) -> Self {
-        Self::new_mod(crate_ident, Scope::empty(parent_scope.self_path_ref().joined(name)), parent_scope, vec![])
+        Self::child_mod(vec![], crate_ident, name, parent_scope)
     }
 }
 

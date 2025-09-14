@@ -11,7 +11,7 @@ use crate::tree::{create_item_use_with_tree, ScopeTree, ScopeTreeItem};
 impl SourceFermentable<RustFermentate> for ScopeTree {
     fn ferment(&self) -> RustFermentate {
         // Ferment children and drop empty results to avoid emitting empty modules.
-        let children: Vec<RustFermentate> = self
+        let fermentate: Depunctuated<RustFermentate> = self
             .exported
             .values()
             .filter_map(|item| match item {
@@ -23,11 +23,9 @@ impl SourceFermentable<RustFermentate> for ScopeTree {
             .filter(|f| !matches!(f, RustFermentate::Empty))
             .collect();
 
-        if children.is_empty() {
+        if fermentate.is_empty() {
             return RustFermentate::Empty;
         }
-
-        let fermentate = Depunctuated::from_iter(children);
 
         let source = self.source_ref();
         let ctx = source.context.borrow();
@@ -39,10 +37,6 @@ impl SourceFermentable<RustFermentate> for ScopeTree {
             .any(|f| !matches!(f, RustFermentate::Mod { .. }))
             .then(|| create_item_use_with_tree(UseTree::Rename(UseRename { ident: format_ident!("crate"), as_token: Default::default(), rename: ctx.config.current_crate.ident() })).punctuate_one());
 
-        // let mut imports = SemiPunctuated::from_iter(self.imported.iter().cloned());
-        // if has_non_mod_child {
-        //     imports.insert(0, create_item_use_with_tree(UseTree::Rename(UseRename { ident: format_ident!("crate"), as_token: Default::default(), rename: ctx.config.current_crate.ident() })));
-        // }
         RustFermentate::mod_with(self.attrs.cfg_attributes(), self.scope.crate_name(), imports, fermentate)
     }
 }

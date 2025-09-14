@@ -58,8 +58,8 @@ pub trait MergeInto {
 
 impl MergeInto for ScopeTreeExportItem {
     fn merge_into(&self, destination: &mut Self) {
-        if let (ScopeTreeExportItem::Tree(_dest_ctx, _, ref mut dest_exports, _dest_attrs),
-            ScopeTreeExportItem::Tree(_src_ctx, _, source_exports, _source_attrs), ) = (destination, &self) {
+        if let (ScopeTreeExportItem::Tree(_, _, ref mut dest_exports, _),
+            ScopeTreeExportItem::Tree(_, _, source_exports, _), ) = (destination, &self) {
             for (name, source_tree) in source_exports {
                 match dest_exports.entry(name.clone()) {
                     Entry::Occupied(mut o) => {

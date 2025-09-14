@@ -113,8 +113,8 @@ impl VisitScope for Item {
         match self {
             Item::Mod(item_mod) =>
                 add_inner_module_conversion(visitor, item_mod, scope),
-            Item::Const(_) => {
-                // TODO: Const scope processing
+            Item::Const(_) | Item::Static(_) | Item::Union(_) => {
+                // TODO: Const/Static/Union scope processing
             }
             Item::Enum(item_enum) => {
                 let ItemEnum { attrs, generics, ident, variants, .. } = item_enum;
@@ -462,37 +462,9 @@ fn add_inner_module_conversion(visitor: &mut Visitor, item_mod: &ItemMod, scope:
 
 fn add_bounds(visitor: &mut Visitor, bounds: &AddPunctuated<TypeParamBound>, scope: &ScopeChain, add_to_parent: bool) -> Vec<Path> {
     let bounds = collect_bounds(bounds);
-    bounds.iter().for_each(|path| {
-        visitor.add_full_qualified_type_match(scope, &path.to_type(), add_to_parent);
-    });
+    bounds.iter().for_each(|path| visitor.add_full_qualified_type_match(scope, &path.to_type(), add_to_parent));
     bounds
 }
-
-// pub fn create_generics_chain(visitor: &mut Visitor, generics: &Generics, scope: &ScopeChain, add_to_parent: bool) -> IndexMap<Type, Vec<Path>> {
-//     let mut generics_chain: IndexMap<Type, Vec<Path>> = IndexMap::new();
-//     let Generics { params, where_clause, .. } = generics;
-//     params.iter().for_each(|generic_param| {
-//         match generic_param { // T: Debug + Clone
-//             GenericParam::Type(TypeParam { ident, bounds, .. }) => {
-//                 generics_chain.insert(parse_quote!(#ident), add_bounds(visitor, bounds, scope, add_to_parent));
-//             },
-//             GenericParam::Const(ConstParam { ty, .. }) =>
-//                 visitor.add_full_qualified_type_match(scope, ty, add_to_parent),
-//             _ => {},
-//         }
-//     });
-//     if let Some(WhereClause { predicates, .. }) = &where_clause {
-//         predicates.iter().for_each(|predicate| match predicate {
-//             WherePredicate::Type(PredicateType { bounds, bounded_ty, .. }) => {
-//                 // where T: Debug + Clone, T::Item: XX,
-//                 generics_chain.insert(parse_quote!(#bounded_ty), add_bounds(visitor, bounds, scope, add_to_parent));
-//                 visitor.add_full_qualified_type_match(scope, bounded_ty, add_to_parent);
-//             },
-//             _ => {}
-//         })
-//     }
-//     generics_chain
-// }
 
 fn collect_trait_bounds(bounds: &AddPunctuated<TypeParamBound>) -> Vec<Path> {
     bounds.iter()

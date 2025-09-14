@@ -13,7 +13,6 @@ use std::rc::Rc;
 use cargo_metadata::{MetadataCommand, Package, Target};
 use proc_macro2::Ident;
 use quote::format_ident;
-use syn::Attribute;
 use crate::context::GlobalContext;
 use crate::error;
 use crate::tree::{FileTreeProcessor, ScopeTreeExportItem};
@@ -43,8 +42,8 @@ impl Crate {
         self.root_path.join("lib.rs")
     }
 
-    pub fn process(&self, attrs: Vec<Attribute>, context: &Rc<RefCell<GlobalContext>>) -> Result<ScopeTreeExportItem, error::Error> {
-        FileTreeProcessor::process_crate_tree(self, attrs, context)
+    pub fn process(&self, context: &Rc<RefCell<GlobalContext>>) -> Result<ScopeTreeExportItem, error::Error> {
+        FileTreeProcessor::process_crate_tree(self, context)
     }
 }
 
@@ -57,7 +56,7 @@ pub(crate) fn find_crates_paths(crate_names: Vec<&str>) -> Vec<Crate> {
                     .iter()
                     .find_map(|Package { targets, name, .. }| match targets.first() {
                         Some(Target { src_path, .. }) if name.as_str() == crate_name =>
-                            src_path.parent().map(|parent_path| Crate::new(name.replace("-", "_").as_str(), PathBuf::from(parent_path))),
+                            src_path.parent().map(|parent_path| Crate::new(&name.replace("-", "_"), PathBuf::from(parent_path))),
                         _ =>
                             None
                     }))

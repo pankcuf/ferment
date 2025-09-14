@@ -28,9 +28,9 @@ impl ScopeTreeItem {
 impl Debug for ScopeTreeItem {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            ScopeTreeItem::Item { item, scope, scope_context: _} =>
+            Self::Item { item, scope, scope_context: _} =>
                 f.write_fmt(format_args!("Item({}, {})", item.ident_string(), format_token_stream(scope.self_path_ref()))),
-            ScopeTreeItem::Tree { tree } =>
+            Self::Tree { tree } =>
                 f.write_fmt(format_args!("Tree({tree:?})")),
         }
     }

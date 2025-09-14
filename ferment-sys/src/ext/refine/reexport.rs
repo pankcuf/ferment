@@ -347,15 +347,12 @@ fn finalize_to_leaf(p: Path, target: &PathSegment, source: &GlobalContext) -> Pa
 
         if source.maybe_scope_item_ref_obj_first(&candidate).is_some() {
             // Check if this scope path is compatible with our base path
-            let is_compatible = is_path_compatible(&p, &scope_path);
-            if is_compatible {
+            if is_path_compatible(&p, &scope_path) {
                 // Check if this candidate path exactly matches what we're looking for
                 // by checking if the base path segments appear consecutively in the candidate
-                let is_exact_match = is_exact_path_match(&p, &candidate);
-                if is_exact_match {
+                if is_exact_path_match(&p, &candidate) {
                     best_exact_match = Some(candidate.clone());
                 }
-
                 if candidate.segments.len() > max_depth {
                     max_depth = candidate.segments.len();
                     best_path = Some(candidate);
@@ -372,8 +369,7 @@ fn finalize_to_leaf(p: Path, target: &PathSegment, source: &GlobalContext) -> Pa
         return best;
     }
     // Strategy 2: Follow glob imports to find the deepest reachable path
-    let deepest_via_globs = find_deepest_path_via_globs(&p, target, source);
-    if let Some(deep_path) = deepest_via_globs {
+    if let Some(deep_path) = find_deepest_path_via_globs(&p, target, source) {
         reexport_dbg!("[reexport] finalize_to_leaf: found path via globs -> {}", deep_path.to_token_stream());
         return deep_path;
     }
@@ -395,7 +391,6 @@ fn is_exact_path_match(base: &Path, candidate: &Path) -> bool {
     // Skip the first segment (usually the crate name) and look for the rest as a subsequence
     if base_len > 1 {
         let meaningful_base_len = base_len - 1;
-
         if candidate_len > meaningful_base_len {
             // Use iterator-based approach for better performance
             'outer: for start_pos in 1..=(candidate_len - meaningful_base_len) {
@@ -432,7 +427,6 @@ fn is_exact_path_match(base: &Path, candidate: &Path) -> bool {
         }
         return true;
     }
-
     false
 }
 
@@ -461,21 +455,13 @@ fn find_deepest_path_via_globs(base: &Path, target: &PathSegment, source: &Globa
             // Try each glob base to see if it leads to a deeper path
             for glob_base in glob_bases {
                 reexport_dbg!("[reexport] find_deepest_path_via_globs: trying glob_base={}", glob_base.to_token_stream());
-                let expanded_path = ReexportSeek::Absolute.join_reexport(
-                    glob_base,
-                    scope.self_path_ref(),
-                    scope.crate_ident_ref(),
-                    None
-                );
-
+                let expanded_path = ReexportSeek::Absolute.join_reexport(glob_base, scope.self_path_ref(), scope.crate_ident_ref(), None);
                 // Normalize the path
-                let normalized = if expanded_path.is_crate_based() ||
-                    expanded_path.segments.first().map(|s| s.ident.eq(scope.crate_ident_ref())).unwrap_or_default() {
+                let normalized = if expanded_path.is_crate_based() || expanded_path.segments.first().map(|s| s.ident.eq(scope.crate_ident_ref())).unwrap_or_default() {
                     expanded_path
                 } else {
                     base.joined(&expanded_path)
                 };
-
                 reexport_dbg!("[reexport] find_deepest_path_via_globs: normalized={}", normalized.to_token_stream());
                 // The target would be at this expanded path
                 let target_candidate = normalized.joined(&target.ident.to_path());
@@ -499,12 +485,19 @@ fn extract_symbol(mapped: &Path, orig: Option<&PathSegment>) -> Option<PathSegme
         return Some(seg.clone());
     }
     // Fallback to original if it looks like a type
-    if let Some(o) = orig { if is_uppercase_ident(&o.ident) { return Some(o.clone()); } }
+    if let Some(o) = orig {
+        if is_uppercase_ident(&o.ident) {
+            return Some(o.clone());
+        }
+    }
     None
 }
 
 fn canonicalize_to_leaf(p: Path, orig: Option<&PathSegment>, source: &GlobalContext) -> Path {
-    let target = match extract_symbol(&p, orig) { Some(t) => t, None => return p };
+    let target = match extract_symbol(&p, orig) {
+        Some(t) => t,
+        None => return p
+    };
     let parent = p.popped();
     if source.maybe_globs_scope_ref(&parent).is_some() {
         reexport_dbg!("[reexport] canonicalize: parent glob at {}", parent.to_token_stream());
@@ -561,7 +554,10 @@ fn resolve_import_chain(mut path: Path, source: &GlobalContext) -> Path {
     loop {
         if guard > 16 { break; }
         guard += 1;
-        let last = match path.segments.last().cloned() { Some(s) => s, None => break };
+        let last = match path.segments.last().cloned() {
+            Some(s) => s,
+            None => break
+        };
         let mut candidate = path.popped();
         let mut mapped: Option<Path> = None;
         // climb ancestors to find the scope where this alias is imported
@@ -719,6 +715,7 @@ fn merge_reexport_chunks(mut base: Path, extension: &Path) -> Path {
 // Find a scope where the leaf symbol is actually defined; return the most specific path.
 // Now takes the base path context to prefer exact matches
 fn find_defined_object_path_with_context(target: &PathSegment, base_path: &Path, source: &GlobalContext) -> Option<Path> {
+
     let mut exact_matches: Vec<Path> = Vec::new();
     let mut best_shallow: Option<(usize, Path)> = None;
     let mut best_deep: Option<(usize, Path)> = None;

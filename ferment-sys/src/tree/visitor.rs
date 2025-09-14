@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::fmt::Formatter;
 use std::rc::Rc;
 use quote::{format_ident, ToTokens};
-use syn::{Attribute, Ident, Item, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemStruct, ItemTrait, ItemType, ItemUse, parse_quote, Type, UseTree, Path};
+use syn::{Attribute, Ident, Item, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemStruct, ItemTrait, ItemType, ItemUse, parse_quote, Type, UseTree, Path, TypePath};
 use syn::visit::Visit;
 use crate::context::{GenericChain, GlobalContext, ScopeChain, TypeChain};
 use crate::kind::{MacroKind, ObjectKind};
@@ -207,24 +207,12 @@ impl Visitor {
 
     pub(crate) fn add_full_qualified_type_match(&mut self, scope: &ScopeChain, ty: &Type, add_to_parent: bool) {
         // Filter out macro marker paths like `ferment_macro::export/register/opaque`
-        fn is_macro_marker_ty(ty: &Type) -> bool {
-            use quote::ToTokens;
-            use syn::{Path, Type, TypePath};
-            let path_is_marker = |path: &Path| {
-                let s = path.to_token_stream().to_string().replace(' ', "");
-                matches!(
-                    s.as_str(),
-                    "ferment_macro::export" | "ferment_macro::register" | "ferment_macro::opaque"
-                )
-            };
-            match ty {
-                Type::Path(TypePath { qself: None, path, .. }) => path_is_marker(path),
-                _ => false,
-            }
-        }
-
         let mut chain = self.create_type_chain(ty, scope);
-        chain.inner.retain(|t, _| !is_macro_marker_ty(t));
+        chain.inner.retain(|t, _| match t {
+            Type::Path(TypePath { qself: None, path, .. }) =>
+                !matches!(path.to_token_stream().to_string().replace(' ', "").as_str(), "ferment_macro::export" | "ferment_macro::register" | "ferment_macro::opaque"),
+            _ => true,
+        });
         self.add_full_qualified_type_chain(scope, chain, add_to_parent)
     }
 

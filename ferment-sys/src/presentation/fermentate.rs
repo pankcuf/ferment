@@ -95,6 +95,10 @@ impl RustFermentate {
     pub fn generics(attrs: &[Attribute], imports: Option<SemiPunctuated<ItemUse>>, conversions: Depunctuated<RustFermentate>) -> Self {
         Self::mod_with(attrs.to_owned(), quote!(generics), imports, conversions)
     }
+
+    pub fn root(conversions: Depunctuated<RustFermentate>) -> Self {
+        Self::Root { mods: conversions }
+    }
 }
 
 impl Default for RustFermentate {
