@@ -1,7 +1,7 @@
 use proc_macro2::Ident;
 use quote::ToTokens;
 use syn::{Path, PathSegment};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use crate::ast::Colon2Punctuated;
 use crate::context::GlobalContext;
 use crate::ext::{Join, PathTransform, Pop, ToPath, CrateBased, CRATE, SELF, SUPER};
@@ -17,15 +17,19 @@ macro_rules! reexport_dbg {
     }
 }
 
-// Simple cache for path resolution results to avoid redundant work
+// Advanced caching for path resolution results to avoid redundant work
 thread_local! {
     static PATH_RESOLUTION_CACHE: std::cell::RefCell<HashMap<String, Option<Path>>> = std::cell::RefCell::new(HashMap::new());
     static ANCESTOR_SEARCH_CACHE: std::cell::RefCell<HashMap<String, Option<Path>>> = std::cell::RefCell::new(HashMap::new());
+    static GLOB_SCOPE_CACHE: std::cell::RefCell<HashMap<String, bool>> = std::cell::RefCell::new(HashMap::new());
+    static CANDIDATE_CACHE: std::cell::RefCell<HashMap<String, Vec<Path>>> = std::cell::RefCell::new(HashMap::new());
+    static SCOPE_INDEX_CACHE: std::cell::RefCell<HashMap<String, HashSet<Ident>>> = std::cell::RefCell::new(HashMap::new());
 }
 
 // Performance monitoring for optimization impact
 static CACHE_HIT_STATS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
+#[allow(unused)]
 pub fn get_cache_hit_count() -> usize {
     CACHE_HIT_STATS.load(std::sync::atomic::Ordering::Relaxed)
 }
@@ -46,10 +50,42 @@ fn cache_resolution(path: &Path, result: Option<Path>) {
     });
 }
 
+#[allow(unused)]
 pub fn clear_resolution_cache() {
     PATH_RESOLUTION_CACHE.with(|cache| cache.borrow_mut().clear());
     ANCESTOR_SEARCH_CACHE.with(|cache| cache.borrow_mut().clear());
+    GLOB_SCOPE_CACHE.with(|cache| cache.borrow_mut().clear());
+    CANDIDATE_CACHE.with(|cache| cache.borrow_mut().clear());
+    SCOPE_INDEX_CACHE.with(|cache| cache.borrow_mut().clear());
     CACHE_HIT_STATS.store(0, std::sync::atomic::Ordering::Relaxed);
+}
+
+// Cached glob scope checking to avoid repeated expensive operations
+fn is_glob_scope_cached(path: &Path, source: &GlobalContext) -> bool {
+    let key = path.to_token_stream().to_string();
+    if let Some(cached) = GLOB_SCOPE_CACHE.with(|cache| cache.borrow().get(&key).cloned()) {
+        CACHE_HIT_STATS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        return cached;
+    }
+
+    let result = source.maybe_globs_scope_ref(path).is_some();
+    GLOB_SCOPE_CACHE.with(|cache| {
+        cache.borrow_mut().insert(key, result);
+    });
+    result
+}
+
+// Cached candidate generation for path resolution
+fn get_cached_candidates(path: &Path, target: Option<&PathSegment>) -> Option<Vec<Path>> {
+    let key = format!("{}#{}", path.to_token_stream(), target.as_ref().map(|t| t.ident.to_string()).unwrap_or_default());
+    CANDIDATE_CACHE.with(|cache| cache.borrow().get(&key).cloned())
+}
+
+fn cache_candidates(path: &Path, target: Option<&PathSegment>, candidates: &[Path]) {
+    let key = format!("{}#{}", path.to_token_stream(), target.as_ref().map(|t| t.ident.to_string()).unwrap_or_default());
+    CANDIDATE_CACHE.with(|cache| {
+        cache.borrow_mut().insert(key, candidates.to_vec());
+    });
 }
 
 fn get_cached_ancestor_search(path: &Path) -> Option<Option<Path>> {
@@ -155,24 +191,60 @@ impl ReexportSeek {
         let target = extract_symbol(&alias_mapped, orig_last.as_ref()).or(orig_last.clone());
         reexport_dbg!("[reexport] alias_mapped={} target={}", alias_mapped.to_token_stream(), target.as_ref().map(|t| t.ident.to_string()).unwrap_or("<none>".into()));
 
-        let mut candidates: Vec<Path> = vec![alias_mapped.clone()];
-        if let Some(t) = target.as_ref() {
-            let mut anc = path.clone();
-            while !anc.segments.is_empty() {
-                let parent = anc.popped();
-                if parent.segments.is_empty() { break; }
-                if source.maybe_globs_scope_ref(&parent).is_some() {
-                    reexport_dbg!("[reexport] ancestor glob at {}", parent.to_token_stream());
-                    if let Some(derived) = derive_path_via_globs(&parent, t, source) { candidates.push(derived); }
+        // Check cache for candidate generation first
+        let candidates = if let Some(cached_candidates) = get_cached_candidates(path, target.as_ref()) {
+            reexport_dbg!("[reexport] cache hit for candidates");
+            cached_candidates
+        } else {
+            // Generate candidates with optimized ancestor traversal
+            let mut candidates = vec![alias_mapped.clone()];
+            if let Some(t) = target.as_ref() {
+                // Batch ancestor path generation to reduce repeated work
+                let ancestors: Vec<Path> = {
+                    let mut ancestors = Vec::new();
+                    let mut anc = path.clone();
+
+                    // Generate all ancestors in one pass
+                    while !anc.segments.is_empty() {
+                        let parent = anc.popped();
+                        if parent.segments.is_empty() { break; }
+                        ancestors.push(parent.clone());
+                        anc = parent;
+                    }
+                    ancestors
+                };
+
+                // Process ancestors with cached glob scope checks
+                for parent in ancestors {
+                    if is_glob_scope_cached(&parent, source) {
+                        reexport_dbg!("[reexport] ancestor glob at {}", parent.to_token_stream());
+                        if let Some(derived) = derive_path_via_globs(&parent, t, source) {
+                            candidates.push(derived);
+                        }
+                    }
                 }
-                anc = parent;
+            }
+
+            // Cache the generated candidates
+            cache_candidates(path, target.as_ref(), &candidates);
+            candidates
+        };
+        reexport_dbg!("[reexport] candidates: [{}]", candidates.iter().map(|p| p.to_token_stream().to_string()).collect::<Vec<_>>().join(", "));
+        // Early pruning: if we have an exact match, return immediately
+        for candidate in &candidates {
+            if is_exact_path_match(path, candidate) && source.maybe_scope_item_ref_obj_first(candidate).is_some() {
+                let finalized = canonicalize_to_leaf(candidate.clone(), target.as_ref(), source);
+                reexport_dbg!("[reexport] select: exact-match -> {}", finalized.to_token_stream());
+                cache_resolution(path, Some(finalized.clone()));
+                return Some(finalized);
             }
         }
-        reexport_dbg!("[reexport] candidates: [{}]", candidates.iter().map(|p| p.to_token_stream().to_string()).collect::<Vec<_>>().join(", "));
+
         // No descendant alias scan here; prefer real object definitions over shallow aliases only as a fallback below.
         if let Some(best) = candidates.iter().find(|p| source.maybe_scope_item_ref_obj_first(p).is_some()).cloned() {
             let finalized = canonicalize_to_leaf(best, target.as_ref(), source);
             reexport_dbg!("[reexport] select: by-object -> {}", finalized.to_token_stream());
+            cache_resolution(path, Some(finalized.clone()));
             return Some(finalized);
         }
         if let Some(t) = target.as_ref() {
@@ -202,28 +274,58 @@ impl ReexportSeek {
 }
 
 
-fn find_actual_containing_modules(target: &PathSegment, base_paths: &[Path], source: &GlobalContext) -> Vec<Ident> {
-    let mut modules = Vec::new();
-    // For each base path, search all possible submodules that contain the target
-    for base_path in base_paths {
-        // Check all scopes to find ones that contain our target
-        for scope in source.scope_register.inner.keys() {
+fn find_actual_containing_modules(target: &PathSegment, base_paths: &[Path], source: &GlobalContext) -> HashSet<Ident> {
+    // Create a cache key that represents this search
+    let cache_key = format!("{}#{}",
+        target.ident.to_string(),
+        base_paths.iter().map(|p| p.to_token_stream().to_string()).collect::<Vec<_>>().join(","));
+
+    // Check cache first
+    if let Some(cached_modules) = SCOPE_INDEX_CACHE.with(|cache| cache.borrow().get(&cache_key).cloned()) {
+        CACHE_HIT_STATS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        return cached_modules;
+    }
+
+    let mut modules = HashSet::new();
+
+    // Pre-filter scopes to reduce iteration overhead
+    let relevant_scopes: Vec<_> = source.scope_register.inner.keys()
+        .filter(|scope| {
             let scope_path = scope.self_path_ref();
-            // Check if this scope is a descendant of our base path and contains the target
-            // Then check if scope_path starts with base_path
-            // Then check if this scope contains our target
-            if scope_path.segments.len() > base_path.segments.len() &&
-                base_path.segments.iter().zip(scope_path.segments.iter()).all(|(base_seg, scope_seg)| base_seg.ident == scope_seg.ident) &&
-                source.maybe_scope_item_ref_obj_first(&scope_path.joined(&target.ident.to_path())).is_some() {
+            // Quick filter: scope must be longer than any base path to be relevant
+            base_paths.iter().any(|base_path| scope_path.segments.len() > base_path.segments.len())
+        })
+        .collect();
+
+    // For each base path, search pre-filtered scopes
+    for base_path in base_paths {
+        for scope in &relevant_scopes {
+            let scope_path = scope.self_path_ref();
+
+            // Early exit conditions for better performance
+            if scope_path.segments.len() <= base_path.segments.len() {
+                continue;
+            }
+
+            // Check if scope_path starts with base_path (optimized comparison)
+            let is_descendant = base_path.segments.len() == 0 ||
+                base_path.segments.iter()
+                    .zip(scope_path.segments.iter())
+                    .all(|(base_seg, scope_seg)| base_seg.ident == scope_seg.ident);
+
+            if is_descendant && source.maybe_scope_item_ref_obj_first(&scope_path.joined(&target.ident.to_path())).is_some() {
                 // Find the immediate child module of base_path that leads to the target
                 if let Some(child_module) = scope_path.segments.get(base_path.segments.len()) {
-                    if !modules.contains(&child_module.ident) {
-                        modules.push(child_module.ident.clone());
-                    }
+                    modules.insert(child_module.ident.clone());
                 }
             }
         }
     }
+
+    // Cache the result
+    SCOPE_INDEX_CACHE.with(|cache| {
+        cache.borrow_mut().insert(cache_key, modules.clone());
+    });
 
     modules
 }
