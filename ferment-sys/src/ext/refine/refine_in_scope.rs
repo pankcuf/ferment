@@ -94,7 +94,7 @@ impl RefineInScope for TypeModelKind {
                         .or_else(|| determine_scope_item(model.ty_mut(), scope_path, scope, source))
                         // Try resolving via absolute reexport (handles glob reexports under modules)
                         .or_else(|| ReexportSeek::Absolute.maybe_reexport(&resolved_import_path, source).and_then(|reexport| source.maybe_scope_item_ref_obj_first(&reexport))) {
-                        println!("[INFO] (Import) Scope item found: {}", found_item);
+                        //println!("[INFO] (Import) Scope item found: {}", found_item);
                         // Build the full item path without duplicating the last segment.
                         // If the original type had generic arguments on the last segment,
                         // copy those arguments onto the discovered item's last segment.
@@ -109,15 +109,15 @@ impl RefineInScope for TypeModelKind {
                             //println!("[INFO] (Import) Scope item refined: {}", updated);
                             *self = updated;
                         }
-                        println!("[WARN] (Import) REFINED (MAYBE): {}", self.as_type().to_token_stream());
+                        println!("[WARN] Import refined as ScopeItem: {}", self.as_type().to_token_stream());
                     } else if let Some(reexport) = ReexportSeek::Absolute.maybe_reexport(&resolved_import_path, source) {
                         // As a last resort, if reexport path is found but not present as an item in the scope register
                         // (e.g., via glob reexports), refine the model to that absolute path and treat it as an object.
                         refine_ty_with_import_path(model.ty_mut(), &reexport);
-                        println!("[WARN] (Import) LAST RESORT: {}", reexport.to_token_stream());
+                        println!("[WARN] Import refined as External: {}", reexport.to_token_stream());
                         *self = TypeModelKind::Object(model);
                     } else {
-                        println!("[WARN] (Import) Unknown import: {}", model.as_type().to_token_stream());
+                        println!("[WARN] Import Unknown: {}", model.as_type().to_token_stream());
                         *self = TypeModelKind::Unknown(model)
                     }
                 }
