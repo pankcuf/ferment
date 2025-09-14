@@ -83,6 +83,9 @@ impl ScopeChain {
     pub fn child_mod(attrs: Vec<Attribute>, crate_ident: Ident, name: &Ident, parent_scope: &ScopeChain) -> Self {
         Self::new_mod(crate_ident, Scope::empty(parent_scope.self_path_ref().joined(name)), parent_scope, attrs)
     }
+    pub fn child_mod_attr_less(crate_ident: Ident, name: &Ident, parent_scope: &ScopeChain) -> Self {
+        Self::new_mod(crate_ident, Scope::empty(parent_scope.self_path_ref().joined(name)), parent_scope, vec![])
+    }
 }
 
 impl PartialEq<Self> for ScopeChain {

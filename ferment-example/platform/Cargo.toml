@@ -26,7 +26,6 @@ platform-version = { git = "https://github.com/pankcuf/platform", branch = "test
 versioned-feature-core = { version = "1.0.0" }
 regex = { version = "1.10.4" }
 serde_json = { version = "1.0", features = ["preserve_order"] }
-#elliptic-curve-tools = { version = "0.1.2", default-features = false, features = ["std", "alloc", "serde", "hex"] }
 
 [build-dependencies]
 cbindgen.workspace = true

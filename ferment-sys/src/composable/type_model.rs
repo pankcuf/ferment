@@ -1,7 +1,7 @@
 use std::fmt::{Debug, Display, Formatter};
 use proc_macro2::Ident;
 use quote::ToTokens;
-use syn::{Generics, Lifetime, Path, TraitBound, Type, TypePtr, TypeReference, TypeTraitObject};
+use syn::{Generics, Lifetime, Path, TraitBound, Type, TypeImplTrait, TypePath, TypePtr, TypeReference, TypeTraitObject};
 use crate::composable::{NestedArgument, TypeModeled};
 use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::ScopeChain;
@@ -79,7 +79,7 @@ impl TypeModel {
     }
     pub fn refine(&mut self, import_path: &Path) {
         let _ = self.ty.refine_with_nested_args(&self.nested_arguments);
-        let _ = refine_ty_with_import_path(&mut self.ty, import_path);
+        refine_ty_with_import_path(&mut self.ty, import_path);
     }
     pub fn nested_argument_at_index(&self, index: usize) -> &NestedArgument {
         &self.nested_arguments[index]
@@ -89,11 +89,13 @@ impl TypeModel {
         match &self.ty {
             Type::Reference(TypeReference { elem, .. }) |
             Type::Ptr(TypePtr { elem, .. }) => elem.to_path(),
-            Type::TraitObject(TypeTraitObject { bounds, .. }) =>
+            Type::TraitObject(TypeTraitObject { bounds, .. }) |
+            Type::ImplTrait(TypeImplTrait { bounds, .. }) =>
                 bounds.iter()
                     .find_map(MaybeTraitBound::maybe_trait_bound)
                     .map(|TraitBound { path, .. }| path.arg_less())
                     .unwrap_or_else(|| bounds.to_path()),
+            Type::Path(TypePath { path, .. }) => path.clone(),
             other =>
                 other.to_path()
         }

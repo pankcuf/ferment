@@ -1,5 +1,5 @@
-mod fermented;
 mod custom;
+mod fermented;
 
 extern crate ferment_macro;
 extern crate serde_json;

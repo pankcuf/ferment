@@ -14,12 +14,20 @@ use syn::token::Comma;
 ///
 /// # Syntax
 ///
-/// The macro can be applied to any Rust function:
+/// The macro can be applied to any Rust function/object/impl:
 ///
 /// ```ignore
 /// #[ferment_macro::export]
 /// pub fn my_function(arg1: MyType1, arg2: MyType2) -> MyReturnType {
-///     // function implementation
+///     // implementation
+/// }
+/// #[ferment_macro::export]
+/// pub struct MyStruct {
+///     // implementation
+/// }
+/// #[ferment_macro::export]
+/// impl MyStruct {
+///     // implementation
 /// }
 /// ```
 ///

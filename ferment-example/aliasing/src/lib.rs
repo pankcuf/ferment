@@ -2,8 +2,11 @@ mod fermented;
 pub mod aa;
 pub mod zz;
 pub mod blockdata;
+pub mod data_contract;
+pub mod errors;
 
 pub use crate::blockdata::script::{self, ScriptBuf};
+pub use errors::*;
 
 extern crate ferment_macro;
 

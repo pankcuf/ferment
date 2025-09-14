@@ -8,6 +8,9 @@ use crate::ext::ReexportSeek;
 use syn::Type;
 use crate::ext::VisitScope;
 use crate::ext::ToType;
+use crate::formatter::format_global_context;
+use crate::kind::{ObjectKind, TypeModelKind, ScopeItemKind};
+use crate::composable::TypeModel;
 
 fn ctx_with_crate(name: &str) -> Rc<RefCell<GlobalContext>> {
     Rc::new(RefCell::new(GlobalContext::with_config(crate::Config::new(
@@ -16,6 +19,8 @@ fn ctx_with_crate(name: &str) -> Rc<RefCell<GlobalContext>> {
         cbindgen::Config::default(),
     ))))
 }
+
+
 
 #[test]
 fn reexport_absolute_from_crate_root() {
@@ -38,7 +43,7 @@ fn reexport_self_from_module_scope() {
     let aa: Ident = format_ident!("aa");
     let ctx = ctx_with_crate(&aa.to_string());
     let root = ScopeChain::crate_root_with_ident(aa.clone(), vec![]);
-    let bb = ScopeChain::child_mod(vec![], aa.clone(), &format_ident!("bb"), &root);
+    let bb = ScopeChain::child_mod_attr_less(aa.clone(), &format_ident!("bb"), &root);
     // use self::xx::Ident;
     ctx.borrow_mut().imports.fold_import_tree(&bb, &parse_quote!(self::xx::Ident), vec![]);
 
@@ -54,8 +59,8 @@ fn reexport_super_from_nested_module() {
     let aa: Ident = format_ident!("aa");
     let ctx = ctx_with_crate(&aa.to_string());
     let root = ScopeChain::crate_root_with_ident(aa.clone(), vec![]);
-    let bb = ScopeChain::child_mod(vec![], aa.clone(), &format_ident!("bb"), &root);
-    let cc = ScopeChain::child_mod(vec![], aa.clone(), &format_ident!("cc"), &bb);
+    let bb = ScopeChain::child_mod_attr_less(aa.clone(), &format_ident!("bb"), &root);
+    let cc = ScopeChain::child_mod_attr_less(aa.clone(), &format_ident!("cc"), &bb);
     // use super::xx::Ident;
     ctx.borrow_mut().imports.fold_import_tree(&cc, &parse_quote!(super::xx::Ident), vec![]);
 
@@ -123,9 +128,9 @@ fn chain_sibling_reexport() {
     let aa: Ident = format_ident!("aa");
     let ctx = ctx_with_crate(&aa.to_string());
     let root = ScopeChain::crate_root_with_ident(aa.clone(), vec![]);
-    let m = ScopeChain::child_mod(vec![], aa.clone(), &format_ident!("m"), &root);
-    let z = ScopeChain::child_mod(vec![], aa.clone(), &format_ident!("z"), &m);
-    let a = ScopeChain::child_mod(vec![], aa.clone(), &format_ident!("a"), &m);
+    let m = ScopeChain::child_mod_attr_less(aa.clone(), &format_ident!("m"), &root);
+    let z = ScopeChain::child_mod_attr_less(aa.clone(), &format_ident!("z"), &m);
+    let a = ScopeChain::child_mod_attr_less(aa.clone(), &format_ident!("a"), &m);
 
     // m::z: use crate::ext::Q as T;
     ctx.borrow_mut().imports.fold_import_tree(&z, &parse_quote!(crate::ext::Q as T), vec![]);
@@ -143,9 +148,9 @@ fn chain_deep_group_with_self_and_super() {
     let aa: Ident = format_ident!("aa");
     let ctx = ctx_with_crate(&aa.to_string());
     let root = ScopeChain::crate_root_with_ident(aa.clone(), vec![]);
-    let m = ScopeChain::child_mod(vec![], aa.clone(), &format_ident!("m"), &root);
-    let u = ScopeChain::child_mod(vec![], aa.clone(), &format_ident!("u"), &m);
-    let k = ScopeChain::child_mod(vec![], aa.clone(), &format_ident!("k"), &u);
+    let m = ScopeChain::child_mod_attr_less(aa.clone(), &format_ident!("m"), &root);
+    let u = ScopeChain::child_mod_attr_less(aa.clone(), &format_ident!("u"), &m);
+    let k = ScopeChain::child_mod_attr_less(aa.clone(), &format_ident!("k"), &u);
 
     // Root: use crate::g::{H as I};
     ctx.borrow_mut().imports.fold_import_tree(&root, &parse_quote!(crate::g::{H as I}), vec![]);
@@ -181,10 +186,20 @@ fn reexport_glob_from_module_scope() {
     let crate_ident: Ident = format_ident!("example_aliasing");
     let ctx = ctx_with_crate(&crate_ident.to_string());
     let root = ScopeChain::crate_root_with_ident(crate_ident.clone(), vec![]);
-    let aa = ScopeChain::child_mod(vec![], crate_ident.clone(), &format_ident!("aa"), &root);
+    let aa = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("aa"), &root);
+    let at_aa = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("at_aa"), &aa);
+
+    // Register that AtAa exists at the deep location
+    let at_aa_type_key: Type = parse_quote!(AtAa);
+    let at_aa_type_value: Type = parse_quote!(#crate_ident::aa::at_aa::AtAa);
+    let fake_struct: syn::ItemStruct = parse_quote!(pub struct AtAa { pub version: u32 });
+    let scope_item = ScopeItemKind::item_struct(&fake_struct, at_aa.self_path_ref());
+    ctx.borrow_mut().scope_mut(&at_aa).insert(at_aa_type_key, ObjectKind::Item(TypeModelKind::Object(TypeModel::new_default(at_aa_type_value)), scope_item));
 
     // Simulate: pub use self::at_aa::*; in module aa
     ctx.borrow_mut().imports.fold_import_tree(&aa, &parse_quote!(self::at_aa::*), vec![]);
+    // Ensure at_aa scope is registered without causing infinite loops - just add an empty import
+    ctx.borrow_mut().imports.fold_import_tree(&at_aa, &parse_quote!(self::nonexistent), vec![]);
 
     // Resolve `example_aliasing::aa::AtAa` -> `example_aliasing::aa::at_aa::AtAa`
     let path: Path = parse_quote!(#crate_ident::aa::AtAa);
@@ -198,10 +213,23 @@ fn reexport_glob_multi_level_like_aliasing() {
     let crate_ident: Ident = format_ident!("example_aliasing");
     let ctx = ctx_with_crate(&crate_ident.to_string());
     let root = ScopeChain::crate_root_with_ident(crate_ident.clone(), vec![]);
-    let aa = ScopeChain::child_mod(vec![], crate_ident.clone(), &format_ident!("aa"), &root);
-    let bb = ScopeChain::child_mod(vec![], crate_ident.clone(), &format_ident!("bb"), &aa);
-    let cc = ScopeChain::child_mod(vec![], crate_ident.clone(), &format_ident!("cc"), &bb);
-    let _dd = ScopeChain::child_mod(vec![], crate_ident.clone(), &format_ident!("dd"), &cc);
+    let aa = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("aa"), &root);
+    let bb = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("bb"), &aa);
+    let cc = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("cc"), &bb);
+    let _dd = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("dd"), &cc);
+
+    // Create child modules for at_bb and at_dd
+    let at_bb = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("at_bb"), &bb);
+    let at_cc = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("at_cc"), &cc);
+    let at_dd = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("at_dd"), &_dd);
+
+    // Register that items exist at their deep locations
+    let at_bb_type_key: Type = parse_quote!(AtBb);
+    let at_bb_type_value: Type = parse_quote!(#crate_ident::aa::bb::at_bb::AtBb);
+    let at_dd_type_key: Type = parse_quote!(AtDd);
+    let at_dd_type_value: Type = parse_quote!(#crate_ident::aa::bb::cc::dd::at_dd::AtDd);
+    ctx.borrow_mut().scope_mut(&at_bb).insert(at_bb_type_key, ObjectKind::Type(TypeModelKind::Object(TypeModel::new_default(at_bb_type_value))));
+    ctx.borrow_mut().scope_mut(&at_dd).insert(at_dd_type_key, ObjectKind::Type(TypeModelKind::Object(TypeModel::new_default(at_dd_type_value))));
 
     // Simulate:
     // aa: pub use self::bb::*;
@@ -228,19 +256,26 @@ fn reexport_glob_multi_level_like_aliasing() {
 /// Resolve from root alias to nested bb item via glob chain: aa -> bb::* -> at_bb::*
 #[test]
 fn aliasing_from_root_to_bb_item() {
-    let crate_ident: Ident = format_ident!("example_aliasing");
+    let crate_ident = format_ident!("example_aliasing");
     let ctx = ctx_with_crate(&crate_ident.to_string());
     let root = ScopeChain::crate_root_with_ident(crate_ident.clone(), vec![]);
-    let aa = ScopeChain::child_mod(vec![], crate_ident.clone(), &format_ident!("aa"), &root);
-    let bb = ScopeChain::child_mod(vec![], crate_ident.clone(), &format_ident!("bb"), &aa);
+    let aa = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("aa"), &root);
+    let bb = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("bb"), &aa);
+    let at_bb = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("at_bb"), &bb);
+
+    // Register that AtBb exists at the deep location
+    let at_bb_type_key: Type = parse_quote!(AtBb);
+    let at_bb_type_value: Type = parse_quote!(#crate_ident::aa::bb::at_bb::AtBb);
+    ctx.borrow_mut().scope_mut(&at_bb).insert(at_bb_type_key, ObjectKind::Type(TypeModelKind::Object(TypeModel::new_default(at_bb_type_value))));
+
     // aa: pub use self::bb::*; bb: pub use self::at_bb::*;
     ctx.borrow_mut().imports.fold_import_tree(&aa, &parse_quote!(self::bb::*), vec![]);
     ctx.borrow_mut().imports.fold_import_tree(&bb, &parse_quote!(self::at_bb::*), vec![]);
-
+    println!("{}", format_global_context(&ctx.borrow()));
     // Resolve aa::AtBb -> aa::bb::at_bb::AtBb
     let path: Path = parse_quote!(#crate_ident::aa::AtBb);
     let resolved = ReexportSeek::Absolute.maybe_reexport(&path, &ctx.borrow()).expect("alias root->bb");
-    assert_eq!(resolved.to_token_stream().to_string().replace(' ', ""), format!("{}::aa::bb::at_bb::AtBb", crate_ident));
+    assert_eq!(resolved.to_token_stream().to_string().replace(' ', ""), format!("{crate_ident}::aa::bb::at_bb::AtBb"));
 }
 
 /// Resolve from root alias to deep dd item via nested globs: aa -> bb::* -> cc::* -> dd::* -> at_dd::*
@@ -249,10 +284,17 @@ fn aliasing_from_root_to_dd_item() {
     let crate_ident: Ident = format_ident!("example_aliasing");
     let ctx = ctx_with_crate(&crate_ident.to_string());
     let root = ScopeChain::crate_root_with_ident(crate_ident.clone(), vec![]);
-    let aa = ScopeChain::child_mod(vec![], crate_ident.clone(), &format_ident!("aa"), &root);
-    let bb = ScopeChain::child_mod(vec![], crate_ident.clone(), &format_ident!("bb"), &aa);
-    let cc = ScopeChain::child_mod(vec![], crate_ident.clone(), &format_ident!("cc"), &bb);
-    let dd = ScopeChain::child_mod(vec![], crate_ident.clone(), &format_ident!("dd"), &cc);
+    let aa = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("aa"), &root);
+    let bb = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("bb"), &aa);
+    let cc = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("cc"), &bb);
+    let dd = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("dd"), &cc);
+    let at_dd = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("at_dd"), &dd);
+
+    // Register that AtDd exists at the deep location
+    let at_dd_type_key: Type = parse_quote!(AtDd);
+    let at_dd_type_value: Type = parse_quote!(#crate_ident::aa::bb::cc::dd::at_dd::AtDd);
+    ctx.borrow_mut().scope_mut(&at_dd).insert(at_dd_type_key, ObjectKind::Type(TypeModelKind::Object(TypeModel::new_default(at_dd_type_value))));
+
     // aa: pub use self::bb::*; bb: pub use self::cc::*; cc: pub use self::dd::*; dd: pub use self::at_dd::*
     let mut lock = ctx.borrow_mut();
     lock.imports.fold_import_tree(&aa, &parse_quote!(self::bb::*), vec![]);
@@ -277,10 +319,10 @@ fn descendant_alias_via_flattened_ancestor() {
     let ctx = ctx_with_crate(&crate_ident.to_string());
     let root = ScopeChain::crate_root_with_ident(crate_ident.clone(), vec![]);
     // Build scopes: zz, zz::yy, zz::yy::xx, zz::yy::xx::ww
-    let zz = ScopeChain::child_mod(vec![], crate_ident.clone(), &format_ident!("zz"), &root);
-    let yy = ScopeChain::child_mod(vec![], crate_ident.clone(), &format_ident!("yy"), &zz);
-    let xx = ScopeChain::child_mod(vec![], crate_ident.clone(), &format_ident!("xx"), &yy);
-    let ww = ScopeChain::child_mod(vec![], crate_ident.clone(), &format_ident!("ww"), &xx);
+    let zz = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("zz"), &root);
+    let yy = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("yy"), &zz);
+    let xx = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("xx"), &yy);
+    let ww = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("ww"), &xx);
 
     // zz flattens yy via glob
     ctx.borrow_mut().imports.fold_import_tree(&zz, &parse_quote!(self::yy::*), vec![]);
@@ -300,10 +342,17 @@ fn aliasing_from_bb_to_dd_item() {
     let crate_ident: Ident = format_ident!("example_aliasing");
     let ctx = ctx_with_crate(&crate_ident.to_string());
     let root = ScopeChain::crate_root_with_ident(crate_ident.clone(), vec![]);
-    let aa = ScopeChain::child_mod(vec![], crate_ident.clone(), &format_ident!("aa"), &root);
-    let bb = ScopeChain::child_mod(vec![], crate_ident.clone(), &format_ident!("bb"), &aa);
-    let cc = ScopeChain::child_mod(vec![], crate_ident.clone(), &format_ident!("cc"), &bb);
-    let dd = ScopeChain::child_mod(vec![], crate_ident.clone(), &format_ident!("dd"), &cc);
+    let aa = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("aa"), &root);
+    let bb = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("bb"), &aa);
+    let cc = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("cc"), &bb);
+    let dd = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("dd"), &cc);
+    let at_dd = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("at_dd"), &dd);
+
+    // Register that AtDd exists at the deep location
+    let at_dd_type_key: Type = parse_quote!(AtDd);
+    let at_dd_type_value: Type = parse_quote!(#crate_ident::aa::bb::cc::dd::at_dd::AtDd);
+    ctx.borrow_mut().scope_mut(&at_dd).insert(at_dd_type_key, ObjectKind::Type(TypeModelKind::Object(TypeModel::new_default(at_dd_type_value))));
+
     let mut lock = ctx.borrow_mut();
     lock.imports.fold_import_tree(&bb, &parse_quote!(self::cc::*), vec![]);
     lock.imports.fold_import_tree(&cc, &parse_quote!(self::dd::*), vec![]);
@@ -322,9 +371,16 @@ fn aliasing_from_root_to_cc_item() {
     let crate_ident: Ident = format_ident!("example_aliasing");
     let ctx = ctx_with_crate(&crate_ident.to_string());
     let root = ScopeChain::crate_root_with_ident(crate_ident.clone(), vec![]);
-    let aa = ScopeChain::child_mod(vec![], crate_ident.clone(), &format_ident!("aa"), &root);
-    let bb = ScopeChain::child_mod(vec![], crate_ident.clone(), &format_ident!("bb"), &aa);
-    let cc = ScopeChain::child_mod(vec![], crate_ident.clone(), &format_ident!("cc"), &bb);
+    let aa = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("aa"), &root);
+    let bb = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("bb"), &aa);
+    let cc = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("cc"), &bb);
+    let at_cc = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("at_cc"), &cc);
+
+    // Register that AtCc exists at the deep location
+    let at_cc_type_key: Type = parse_quote!(AtCc);
+    let at_cc_type_value: Type = parse_quote!(#crate_ident::aa::bb::cc::at_cc::AtCc);
+    ctx.borrow_mut().scope_mut(&at_cc).insert(at_cc_type_key, ObjectKind::Type(TypeModelKind::Object(TypeModel::new_default(at_cc_type_value))));
+
     let mut lock = ctx.borrow_mut();
     lock.imports.fold_import_tree(&aa, &parse_quote!(self::bb::*), vec![]);
     lock.imports.fold_import_tree(&bb, &parse_quote!(self::cc::*), vec![]);
@@ -343,7 +399,7 @@ fn multi_base_glob_prefers_matching_base() {
     let aa: Ident = format_ident!("aa");
     let ctx = ctx_with_crate(&aa.to_string());
     let root = ScopeChain::crate_root_with_ident(aa.clone(), vec![]);
-    let bb = ScopeChain::child_mod(vec![], aa.clone(), &format_ident!("bb"), &root);
+    let bb = ScopeChain::child_mod_attr_less(aa.clone(), &format_ident!("bb"), &root);
     // Root has two globs: bb::* and cc::*. Only bb will have at_bb::*
     ctx.borrow_mut().imports.fold_import_tree(&root, &parse_quote!(self::bb::*), vec![]);
     ctx.borrow_mut().imports.fold_import_tree(&root, &parse_quote!(self::cc::*), vec![]);
@@ -361,9 +417,9 @@ fn reexport_with_super_super() {
     let aa: Ident = format_ident!("aa");
     let ctx = ctx_with_crate(&aa.to_string());
     let root = ScopeChain::crate_root_with_ident(aa.clone(), vec![]);
-    let bb = ScopeChain::child_mod(vec![], aa.clone(), &format_ident!("bb"), &root);
-    let cc = ScopeChain::child_mod(vec![], aa.clone(), &format_ident!("cc"), &bb);
-    let k  = ScopeChain::child_mod(vec![], aa.clone(), &format_ident!("k"),  &cc);
+    let bb = ScopeChain::child_mod_attr_less(aa.clone(), &format_ident!("bb"), &root);
+    let cc = ScopeChain::child_mod_attr_less(aa.clone(), &format_ident!("cc"), &bb);
+    let k  = ScopeChain::child_mod_attr_less(aa.clone(), &format_ident!("k"),  &cc);
     // k: use super::super::x::Y as Z;
     ctx.borrow_mut().imports.fold_import_tree(&k, &parse_quote!(super::super::x::Y as Z), vec![]);
     let path: Path = parse_quote!(aa::bb::cc::k::Z);
@@ -380,8 +436,8 @@ fn refine_nested_generic_via_pipeline() {
     let crate_ident: Ident = format_ident!("example_aliasing");
     let ctx = ctx_with_crate(&crate_ident.to_string());
     let root = ScopeChain::crate_root_with_ident(crate_ident.clone(), vec![]);
-    let aa = ScopeChain::child_mod(vec![], crate_ident.clone(), &format_ident!("aa"), &root);
-    let bb = ScopeChain::child_mod(vec![], crate_ident.clone(), &format_ident!("bb"), &aa);
+    let aa = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("aa"), &root);
+    let bb = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("bb"), &aa);
     ctx.borrow_mut().imports.fold_import_tree(&aa, &parse_quote!(self::bb::*), vec![]);
     ctx.borrow_mut().imports.fold_import_tree(&bb, &parse_quote!(self::at_bb::*), vec![]);
 
@@ -411,10 +467,10 @@ fn refine_nested_fn_arg_via_pipeline() {
     let crate_ident: Ident = format_ident!("example_aliasing");
     let ctx = ctx_with_crate(&crate_ident.to_string());
     let root = ScopeChain::crate_root_with_ident(crate_ident.clone(), vec![]);
-    let aa = ScopeChain::child_mod(vec![], crate_ident.clone(), &format_ident!("aa"), &root);
-    let bb = ScopeChain::child_mod(vec![], crate_ident.clone(), &format_ident!("bb"), &aa);
-    let cc = ScopeChain::child_mod(vec![], crate_ident.clone(), &format_ident!("cc"), &bb);
-    let dd = ScopeChain::child_mod(vec![], crate_ident.clone(), &format_ident!("dd"), &cc);
+    let aa = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("aa"), &root);
+    let bb = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("bb"), &aa);
+    let cc = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("cc"), &bb);
+    let dd = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("dd"), &cc);
     let mut lock = ctx.borrow_mut();
     lock.imports.fold_import_tree(&aa, &parse_quote!(self::bb::*), vec![]);
     lock.imports.fold_import_tree(&bb, &parse_quote!(self::cc::*), vec![]);
@@ -443,8 +499,8 @@ fn rename_chain_across_modules() {
     let aa: Ident = format_ident!("aa");
     let ctx = ctx_with_crate(&aa.to_string());
     let root = ScopeChain::crate_root_with_ident(aa.clone(), vec![]);
-    let m = ScopeChain::child_mod(vec![], aa.clone(), &format_ident!("m"), &root);
-    let a = ScopeChain::child_mod(vec![], aa.clone(), &format_ident!("a"), &m);
+    let m = ScopeChain::child_mod_attr_less(aa.clone(), &format_ident!("m"), &root);
+    let a = ScopeChain::child_mod_attr_less(aa.clone(), &format_ident!("a"), &m);
 
     // Root: use crate::m::{X as P};  m::a: use super::P as Q;
     ctx.borrow_mut().imports.fold_import_tree(&root, &parse_quote!(crate::m::{X as P}), vec![]);
@@ -461,8 +517,8 @@ fn rename_then_glob_chain_to_bb() {
     let crate_ident: Ident = format_ident!("example_aliasing");
     let ctx = ctx_with_crate(&crate_ident.to_string());
     let root = ScopeChain::crate_root_with_ident(crate_ident.clone(), vec![]);
-    let aa = ScopeChain::child_mod(vec![], crate_ident.clone(), &format_ident!("aa"), &root);
-    let bb = ScopeChain::child_mod(vec![], crate_ident.clone(), &format_ident!("bb"), &aa);
+    let aa = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("aa"), &root);
+    let bb = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("bb"), &aa);
 
     // root: use crate::aa::bb::{AtBb as RootBb}; aa: pub use self::bb::*; bb: pub use self::at_bb::*
     ctx.borrow_mut().imports.fold_import_tree(&root, &parse_quote!(crate::aa::bb::{AtBb as RootBb}), vec![]);
@@ -471,8 +527,7 @@ fn rename_then_glob_chain_to_bb() {
 
     let path: Path = parse_quote!(#crate_ident::RootBb);
     let resolved = ReexportSeek::Absolute.maybe_reexport(&path, &ctx.borrow()).expect("rename+glob bb");
-    assert_eq!(resolved.to_token_stream().to_string().replace(' ', ""),
-               format!("{}::aa::bb::at_bb::AtBb", crate_ident));
+    assert_eq!(resolved.to_token_stream().to_string().replace(' ', ""), format!("{crate_ident}::aa::bb::at_bb::AtBb"));
 }
 
 /// Glob chain then rename at the leaf: aa -> bb::* -> cc::* -> dd::* ; dd exposes `AtDd as DdAlias`
@@ -481,10 +536,10 @@ fn glob_chain_then_leaf_rename() {
     let crate_ident: Ident = format_ident!("example_aliasing");
     let ctx = ctx_with_crate(&crate_ident.to_string());
     let root = ScopeChain::crate_root_with_ident(crate_ident.clone(), vec![]);
-    let aa = ScopeChain::child_mod(vec![], crate_ident.clone(), &format_ident!("aa"), &root);
-    let bb = ScopeChain::child_mod(vec![], crate_ident.clone(), &format_ident!("bb"), &aa);
-    let cc = ScopeChain::child_mod(vec![], crate_ident.clone(), &format_ident!("cc"), &bb);
-    let dd = ScopeChain::child_mod(vec![], crate_ident.clone(), &format_ident!("dd"), &cc);
+    let aa = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("aa"), &root);
+    let bb = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("bb"), &aa);
+    let cc = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("cc"), &bb);
+    let dd = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("dd"), &cc);
 
     let mut lock = ctx.borrow_mut();
     lock.imports.fold_import_tree(&aa, &parse_quote!(self::bb::*), vec![]);
@@ -496,7 +551,7 @@ fn glob_chain_then_leaf_rename() {
     // Resolve aa::DdAlias -> aa::bb::cc::dd::at_dd::AtDd
     let path: Path = parse_quote!(#crate_ident::aa::DdAlias);
     let resolved = ReexportSeek::Absolute.maybe_reexport(&path, &ctx.borrow()).expect("glob then leaf rename");
-    assert_eq!(resolved.to_token_stream().to_string().replace(' ', ""), format!("{}::aa::bb::cc::dd::at_dd::AtDd", crate_ident));
+    assert_eq!(resolved.to_token_stream().to_string().replace(' ', ""), format!("{crate_ident}::aa::bb::cc::dd::at_dd::AtDd"));
 }
 
 /// Multiple renames across chain: A -> B -> C -> target
@@ -522,8 +577,8 @@ fn self_super_rename_combo() {
     let aa: Ident = format_ident!("aa");
     let ctx = ctx_with_crate(&aa.to_string());
     let root = ScopeChain::crate_root_with_ident(aa.clone(), vec![]);
-    let bb = ScopeChain::child_mod(vec![], aa.clone(), &format_ident!("bb"), &root);
-    let cc = ScopeChain::child_mod(vec![], aa.clone(), &format_ident!("cc"), &bb);
+    let bb = ScopeChain::child_mod_attr_less(aa.clone(), &format_ident!("bb"), &root);
+    let cc = ScopeChain::child_mod_attr_less(aa.clone(), &format_ident!("cc"), &bb);
 
     // bb: use super::x::Y as Z; cc: use self::Z as W
     ctx.borrow_mut().imports.fold_import_tree(&bb, &parse_quote!(super::x::Y as Z), vec![]);

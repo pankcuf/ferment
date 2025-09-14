@@ -2,14 +2,13 @@ use proc_macro2::Ident;
 use quote::ToTokens;
 use syn::{Path, PathSegment};
 use crate::ast::Colon2Punctuated;
-use crate::context::{GlobalContext, ScopeChain};
+use crate::context::GlobalContext;
 use crate::ext::{Join, PathTransform, Pop, ToPath, CrateBased, CRATE, SELF, SUPER};
+use crate::kind::ScopeItemKind;
 
 // Lightweight debug toggle for reexport resolution
 fn reexport_dbg_enabled() -> bool {
-    std::env::var("FERMENT_DEBUG_REEXPORT")
-        .map(|v| v == "1" || v.eq_ignore_ascii_case("true") || v.eq_ignore_ascii_case("yes"))
-        .unwrap_or(false)
+    std::env::var("FERMENT_DEBUG_REEXPORT").is_ok()
 }
 macro_rules! reexport_dbg {
     ($($arg:tt)*) => {
@@ -23,6 +22,9 @@ pub enum ReexportSeek {
 }
 
 impl ReexportSeek {
+    pub fn new(is_absolute: bool) -> Self {
+        if is_absolute { ReexportSeek::Absolute } else { ReexportSeek::Relative }
+    }
 
     fn join_reexport(&self, import_path: &Path, scope_path: &Path, crate_name: &Ident, chunk: Option<&Path>) -> Path {
         // TODO: deal with "super::super::"
@@ -86,7 +88,7 @@ impl ReexportSeek {
             if !parent.segments.is_empty() && is_uppercase_ident(&last.ident) && source.maybe_globs_scope_ref(&parent).is_some() {
                 reexport_dbg!("[reexport] early-deepen: parent={} last={} (glob detected)", parent.to_token_stream(), last.ident.to_string());
                 if let Some(derived) = derive_path_via_globs(&parent, &last, source) {
-                    let finalized = finalize_to_leaf(derived, &last);
+                    let finalized = finalize_to_leaf(derived, &last, source);
                     reexport_dbg!("[reexport] early-deepen -> {}", finalized.to_token_stream());
                     return Some(finalized);
                 }
@@ -111,7 +113,6 @@ impl ReexportSeek {
                 anc = parent;
             }
         }
-
         reexport_dbg!("[reexport] candidates: [{}]", candidates.iter().map(|p| p.to_token_stream().to_string()).collect::<Vec<_>>().join(", "));
         // No descendant alias scan here; prefer real object definitions over shallow aliases only as a fallback below.
         if let Some(best) = candidates.iter().find(|p| source.maybe_scope_item_ref_obj_first(p).is_some()).cloned() {
@@ -120,19 +121,21 @@ impl ReexportSeek {
             return Some(finalized);
         }
         if let Some(t) = target.as_ref() {
-            let pref = at_module_name_of(t);
-            if let Some(best) = candidates.iter().find(|p| p.segments.iter().any(|s| s.ident.eq(&pref))).cloned() {
+            let module_names = find_actual_containing_modules(t, &candidates, source);
+            if let Some(best) = candidates.iter().find(|p| p.segments.iter().any(|s| module_names.contains(&s.ident))).cloned() {
                 // Already deep; just ensure leaf symbol
-                let finalized = finalize_to_leaf(best, t);
-                reexport_dbg!("[reexport] select: by-atmod -> {}", finalized.to_token_stream());
+                let finalized = finalize_to_leaf(best, t, source);
+                reexport_dbg!("[reexport] select: by-module -> {}", finalized.to_token_stream());
                 return Some(finalized);
             }
         }
         let finalized = canonicalize_to_leaf(alias_mapped.clone(), target.as_ref(), source);
         reexport_dbg!("[reexport] select: fallback -> {}", finalized.to_token_stream());
         if let Some(t) = target.as_ref() {
-            // Absolute last resort: scan all known scopes for a defined object named `t` and pick the deepest path
-            if let Some(mapped) = find_defined_object_path(t, source) {
+            // Absolute last resort: scan all known scopes for a defined object named `t` and pick the best path
+            // Use the base path (without the target) as context for better matching
+            let base_path_for_context = path.popped(); // Remove the target from the original path
+            if let Some(mapped) = find_defined_object_path_with_context(t, &base_path_for_context, source) {
                 reexport_dbg!("[reexport] select: fallback-by-defined -> {}", mapped.to_token_stream());
                 return Some(mapped);
             }
@@ -141,66 +144,197 @@ impl ReexportSeek {
     }
 }
 
-fn camel_to_snake(s: &str) -> String {
-    let mut out = String::new();
-    for (i, ch) in s.chars().enumerate() {
-        if ch.is_uppercase() {
-            if i != 0 { out.push('_'); }
-            for lc in ch.to_lowercase() { out.push(lc); }
-        } else {
-            out.push(ch);
+
+fn find_actual_containing_modules(target: &PathSegment, base_paths: &[Path], source: &GlobalContext) -> Vec<Ident> {
+    let mut modules = Vec::new();
+    // For each base path, search all possible submodules that contain the target
+    for base_path in base_paths {
+        // Check all scopes to find ones that contain our target
+        for scope in source.scope_register.inner.keys() {
+            let scope_path = scope.self_path_ref();
+            // Check if this scope is a descendant of our base path and contains the target
+            // Then check if scope_path starts with base_path
+            // Then check if this scope contains our target
+            if scope_path.segments.len() > base_path.segments.len() &&
+                base_path.segments.iter().zip(scope_path.segments.iter()).all(|(base_seg, scope_seg)| base_seg.ident == scope_seg.ident) &&
+                source.maybe_scope_item_ref_obj_first(&scope_path.joined(&target.ident.to_path())).is_some() {
+                // Find the immediate child module of base_path that leads to the target
+                if let Some(child_module) = scope_path.segments.get(base_path.segments.len()) {
+                    if !modules.contains(&child_module.ident) {
+                        modules.push(child_module.ident.clone());
+                    }
+                }
+            }
         }
     }
-    out
+
+    modules
 }
 
-fn at_module_name_of(target: &PathSegment) -> String {
-    let snake = camel_to_snake(&target.ident.to_string());
-    if snake.starts_with("at_") { snake } else { format!("at_{}", snake) }
-}
 
-fn is_lowercase_ident(ident: &Ident) -> bool {
-    ident.to_string().chars().next().map(|c| c.is_lowercase()).unwrap_or_default()
-}
-
-fn finalize_to_leaf(p: Path, target: &PathSegment) -> Path {
+fn finalize_to_leaf(p: Path, target: &PathSegment, source: &GlobalContext) -> Path {
     // If already ends with target, done
     if p.segments.last().map(|s| s.ident == target.ident).unwrap_or_default() {
         return p;
     }
-    let at_mod = at_module_name_of(target);
-    let last_is_at_mod = p.segments.last().map(|s| s.ident.eq(&at_mod)).unwrap_or_default();
-    if last_is_at_mod {
-        // Append the leaf symbol
-        return p.joined(&target.ident.to_path());
-    }
-    // If ends with lowercase (likely module), try to replace it with the leaf symbol when previous is at_mod
-    if let Some(last) = p.segments.last().cloned() {
-        if is_lowercase_ident(&last.ident) {
-            // If previous is at_mod, replace last with target; else append target
-            let mut replaced = p.clone();
-            let prev_is_at_mod = p.segments.iter().rev().nth(1).map(|s| s.ident.eq(&at_mod)).unwrap_or_default();
-            if prev_is_at_mod {
-                // replace last with target
-                replaced.segments.pop();
-                replaced.segments.push(target.clone());
-                return replaced;
-            } else {
-                return p.joined(&target.ident.to_path());
+    // Strategy 1: Look for actual item definitions in registered scopes
+    let mut best_path: Option<Path> = None;
+    let mut max_depth = 0;
+    let mut best_exact_match: Option<Path> = None;
+
+    for scope in source.scope_register.inner.keys() {
+        let scope_path = scope.self_path_ref();
+        let candidate = scope_path.joined(&target.ident.to_path());
+
+        if source.maybe_scope_item_ref_obj_first(&candidate).is_some() {
+            // Check if this scope path is compatible with our base path
+            let is_compatible = is_path_compatible(&p, &scope_path);
+            if is_compatible {
+                // Check if this candidate path exactly matches what we're looking for
+                // by checking if the base path segments appear consecutively in the candidate
+                let is_exact_match = is_exact_path_match(&p, &candidate);
+                if is_exact_match {
+                    best_exact_match = Some(candidate.clone());
+                }
+
+                if candidate.segments.len() > max_depth {
+                    max_depth = candidate.segments.len();
+                    best_path = Some(candidate);
+                }
             }
         }
     }
-    // Default: append target
+
+    // Prefer exact match to anything else
+    if let Some(exact_match) = best_exact_match {
+        return exact_match;
+    }
+    if let Some(best) = best_path {
+        return best;
+    }
+    // Strategy 2: Follow glob imports to find the deepest reachable path
+    let deepest_via_globs = find_deepest_path_via_globs(&p, target, source);
+    if let Some(deep_path) = deepest_via_globs {
+        reexport_dbg!("[reexport] finalize_to_leaf: found path via globs -> {}", deep_path.to_token_stream());
+        return deep_path;
+    }
+    // Fallback: just append target to the current path
     p.joined(&target.ident.to_path())
 }
 
-fn is_uppercase_ident(ident: &proc_macro2::Ident) -> bool {
-    ident.to_string().chars().next().map(|c| c.is_uppercase()).unwrap_or(false)
+fn is_exact_path_match(base: &Path, candidate: &Path) -> bool {
+    // Check if the base path segments appear consecutively in the candidate path
+    if base.segments.is_empty() {
+        return true;
+    }
+
+    if candidate.segments.len() < base.segments.len() {
+        return false;
+    }
+
+    let base_segments: Vec<_> = base.segments.iter().collect();
+    let candidate_segments: Vec<_> = candidate.segments.iter().collect();
+
+    // Skip the first segment (usually the crate name) and look for the rest as a subsequence
+    if base_segments.len() > 1 {
+        let meaningful_base = &base_segments[1..]; // Skip crate prefix
+
+        // Look for this subsequence in the candidate (also skipping the first segment)
+        if candidate_segments.len() > meaningful_base.len() {
+            for start_pos in 1..=(candidate_segments.len() - meaningful_base.len()) {
+                let mut matches = true;
+                for (i, base_seg) in meaningful_base.iter().enumerate() {
+                    if candidate_segments[start_pos + i].ident != base_seg.ident {
+                        matches = false;
+                        break;
+                    }
+                }
+                if matches {
+                    return true;
+                }
+            }
+        }
+    }
+
+    // Fallback to original exact consecutive matching
+    for start_pos in 0..=(candidate_segments.len() - base_segments.len()) {
+        let mut matches = true;
+        for (i, base_seg) in base_segments.iter().enumerate() {
+            if candidate_segments[start_pos + i].ident != base_seg.ident {
+                matches = false;
+                break;
+            }
+        }
+        if matches {
+            return true;
+        }
+    }
+
+    false
+}
+
+
+fn is_path_compatible(base: &Path, scope: &Path) -> bool {
+    if base.segments.is_empty() {
+        return true;
+    }
+    // Check if scope contains all segments from base in order
+    let mut base_idx = 0;
+    for scope_seg in &scope.segments {
+        if base_idx < base.segments.len() && scope_seg.ident == base.segments[base_idx].ident {
+            base_idx += 1;
+        }
+    }
+    base_idx == base.segments.len()
+}
+
+fn find_deepest_path_via_globs(base: &Path, target: &PathSegment, source: &GlobalContext) -> Option<Path> {
+    reexport_dbg!("[reexport] find_deepest_path_via_globs: base={}", base.to_token_stream());
+
+    // If there's a direct glob at the base path, follow it
+    if let Some(scope) = source.maybe_globs_scope_ref(base) {
+        if let Some(glob_bases) = source.imports.maybe_scope_globs(scope) {
+            reexport_dbg!("[reexport] find_deepest_path_via_globs: found {} glob bases", glob_bases.len());
+            // Try each glob base to see if it leads to a deeper path
+            for glob_base in glob_bases {
+                reexport_dbg!("[reexport] find_deepest_path_via_globs: trying glob_base={}", glob_base.to_token_stream());
+                let expanded_path = ReexportSeek::Absolute.join_reexport(
+                    glob_base,
+                    scope.self_path_ref(),
+                    scope.crate_ident_ref(),
+                    None
+                );
+
+                // Normalize the path
+                let normalized = if expanded_path.is_crate_based() ||
+                    expanded_path.segments.first().map(|s| s.ident.eq(scope.crate_ident_ref())).unwrap_or_default() {
+                    expanded_path
+                } else {
+                    base.joined(&expanded_path)
+                };
+
+                reexport_dbg!("[reexport] find_deepest_path_via_globs: normalized={}", normalized.to_token_stream());
+                // The target would be at this expanded path
+                let target_candidate = normalized.joined(&target.ident.to_path());
+                reexport_dbg!("[reexport] find_deepest_path_via_globs: returning target_candidate={}", target_candidate.to_token_stream());
+                return Some(target_candidate);
+            }
+        }
+    }
+
+    reexport_dbg!("[reexport] find_deepest_path_via_globs: no glob found at base");
+    None
+}
+
+fn is_uppercase_ident(ident: &Ident) -> bool {
+    ident.to_string().chars().next().map(char::is_uppercase).unwrap_or_default()
 }
 
 fn extract_symbol(mapped: &Path, orig: Option<&PathSegment>) -> Option<PathSegment> {
     // Prefer the last uppercase segment from the mapped path (true target if rename applied)
-    if let Some(seg) = mapped.segments.iter().rev().find_map(|s| if is_uppercase_ident(&s.ident) { Some(s.clone()) } else { None }) { return Some(seg); }
+    if let Some(seg) = mapped.segments.iter().rev().find(|s| is_uppercase_ident(&s.ident)) {
+        return Some(seg.clone());
+    }
     // Fallback to original if it looks like a type
     if let Some(o) = orig { if is_uppercase_ident(&o.ident) { return Some(o.clone()); } }
     None
@@ -219,7 +353,7 @@ fn canonicalize_to_leaf(p: Path, orig: Option<&PathSegment>, source: &GlobalCont
                 reexport_dbg!("[reexport] canonicalize: parent-mapped-leaf -> {}", mapped.to_token_stream());
                 return mapped;
             }
-            let finalized = finalize_to_leaf(derived, &target);
+            let finalized = finalize_to_leaf(derived, &target, source);
             reexport_dbg!("[reexport] canonicalize: parent-derived -> {}", finalized.to_token_stream());
             return finalized;
         }
@@ -237,7 +371,7 @@ fn canonicalize_to_leaf(p: Path, orig: Option<&PathSegment>, source: &GlobalCont
                     reexport_dbg!("[reexport] canonicalize: ancestor-mapped-leaf -> {}", mapped.to_token_stream());
                     return mapped;
                 }
-                let finalized = finalize_to_leaf(derived, &target);
+                let finalized = finalize_to_leaf(derived, &target, source);
                 reexport_dbg!("[reexport] canonicalize: ancestor-derived -> {}", finalized.to_token_stream());
                 return finalized;
             }
@@ -297,39 +431,6 @@ fn resolve_import_chain(mut path: Path, source: &GlobalContext) -> Path {
 // Depth-first expansion through nested glob reexports.
 // Starting from an absolute base scope path (e.g., aa::bb::cc), try to resolve `last` by checking
 // `base::last`; if not found, and `base` has its own glob bases, recursively try `base::<sub>::last`.
-fn resolve_by_nested_globs(base_abs: &Path, last: &PathSegment, source: &GlobalContext, depth: usize) -> Option<Path> {
-    if depth > 8 { return None; }
-    // base::last
-    let candidate = base_abs.joined(&last.ident.to_path());
-    // If base tail matches the common module naming, accept candidate directly
-    let preferred_tail = at_module_name_of(last);
-    if base_abs.segments.last().map(|s| s.ident.to_string()) == Some(preferred_tail.clone()) {
-        return Some(candidate);
-    }
-    if source.maybe_scope_item_ref_obj_first(&candidate).is_some() {
-        return Some(candidate);
-    }
-    // Look for globs under this base scope and try each sub-base
-    if let Some(base_scope) = source.maybe_globs_scope_ref(base_abs) {
-        if let Some(sub_bases) = source.imports.maybe_scope_globs(base_scope) {
-            for sub in sub_bases.iter() {
-                // Normalize sub-base under this scope
-                let sub_abs_rel = ReexportSeek::Absolute.join_reexport(sub, base_scope.self_path_ref(), base_scope.crate_ident_ref(), None);
-                let is_abs = sub_abs_rel.is_crate_based() || sub_abs_rel.segments.first().map(|seg| seg.ident.eq(base_scope.crate_ident_ref())).unwrap_or_default();
-                let sub_abs = if is_abs { sub_abs_rel } else { base_abs.joined(&sub_abs_rel) };
-                // If sub base tail matches preferred, return synthesized path
-                if sub_abs.segments.last().map(|s| s.ident.to_string()) == Some(preferred_tail.clone()) {
-                    return Some(sub_abs.joined(&last.ident.to_path()));
-                }
-                if let Some(found) = resolve_by_nested_globs(&sub_abs, last, source, depth + 1) {
-                    return Some(found);
-                }
-            }
-        }
-    }
-    // No match found under this base
-    None
-}
 
 // Search for a descendant scope reachable via nested globs from `base_abs`
 // that defines an alias import for `alias`.
@@ -373,59 +474,59 @@ fn derive_alias_scope_via_globs(start_scope_path: &Path, alias: &PathSegment, so
 // Deterministically build a plausible reexport path by following glob bases
 // and preferring modules named `at_<snake(last)>` when present.
 fn derive_path_via_globs(start_scope_path: &Path, last: &PathSegment, source: &GlobalContext) -> Option<Path> {
-    let preferred_tail = at_module_name_of(last);
+    derive_path_via_globs_with_depth(start_scope_path, last, source, 0)
+}
+
+fn derive_path_via_globs_with_depth(start_scope_path: &Path, last: &PathSegment, source: &GlobalContext, depth: usize) -> Option<Path> {
+    if depth > 8 { return None; }
+
+    reexport_dbg!("[reexport] derive_path_via_globs: start_scope_path={} target={} depth={}", start_scope_path.to_token_stream(), last.ident, depth);
     let mut current = start_scope_path.clone();
     let mut guard = 0usize;
     while guard < 8 {
         guard += 1;
-        let scope = match source.maybe_globs_scope_ref(&current) { Some(s) => s, None => break };
-        let bases = match source.imports.maybe_scope_globs(scope) { Some(b) => b, None => break };
-        if bases.is_empty() { break; }
-        for b in bases.iter() {
-            let base_abs_rel = ReexportSeek::Absolute.join_reexport(b, scope.self_path_ref(), scope.crate_ident_ref(), None);
-            let first_is_crate = base_abs_rel.segments.first().map(|seg| seg.ident.eq(scope.crate_ident_ref())).unwrap_or(false) || base_abs_rel.is_crate_based();
-            let base_abs = if first_is_crate { base_abs_rel } else { current.joined(&base_abs_rel) };
-            if base_abs.segments.last().map(|s| s.ident.to_string()) == Some(preferred_tail.clone()) {
-                return Some(base_abs.joined(&last.ident.to_path()));
+        let scope = match source.maybe_globs_scope_ref(&current) {
+            Some(s) => s,
+            None => {
+                reexport_dbg!("[reexport] derive_path_via_globs: no scope at {}", current.to_token_stream());
+                break
             }
-            if let Some(found) = resolve_by_nested_globs(&base_abs, last, source, 0) { return Some(found); }
+        };
+        let bases = match source.imports.maybe_scope_globs(scope) {
+            Some(b) => b,
+            None => {
+                reexport_dbg!("[reexport] derive_path_via_globs: no glob bases at {}", current.to_token_stream());
+                break
+            }
+        };
+        if bases.is_empty() { break; }
+        reexport_dbg!("[reexport] derive_path_via_globs: found {} bases at {}", bases.len(), current.to_token_stream());
+        for b in bases.iter() {
+            reexport_dbg!("[reexport] derive_path_via_globs: trying base {}", b.to_token_stream());
+            let base_abs_rel = ReexportSeek::Absolute.join_reexport(b, scope.self_path_ref(), scope.crate_ident_ref(), None);
+            let first_is_crate = base_abs_rel.segments.first().map(|seg| seg.ident.eq(scope.crate_ident_ref())).unwrap_or_default() || base_abs_rel.is_crate_based();
+            let base_abs = if first_is_crate { base_abs_rel } else { current.joined(&base_abs_rel) };
+            reexport_dbg!("[reexport] derive_path_via_globs: base_abs={}", base_abs.to_token_stream());
+
+            // Check if this expanded path has further globs we should follow
+            if let Some(deeper) = derive_path_via_globs_with_depth(&base_abs, last, source, depth + 1) {
+                reexport_dbg!("[reexport] derive_path_via_globs: found deeper path -> {}", deeper.to_token_stream());
+                return Some(deeper);
+            }
+
+            // If no deeper path, verify the target actually exists at this location before returning
+            let target_path = base_abs.joined(&last.ident.to_path());
+            if source.maybe_scope_item_ref_obj_first(&target_path).is_some() {
+                reexport_dbg!("[reexport] derive_path_via_globs: verified target exists, returning -> {}", target_path.to_token_stream());
+                return Some(target_path);
+            } else {
+                reexport_dbg!("[reexport] derive_path_via_globs: target does not exist at -> {}", target_path.to_token_stream());
+            }
         }
         current = current.popped();
         if current.segments.is_empty() { break; }
     }
-    None
-}
-
-// (Removed legacy: is_descendant_of)
-
-// Try to find a direct alias for the last segment in any ancestor scope of `path`.
-// (Removed legacy: resolve_by_ancestor_imports)
-// Try to find the scope where item is actually defined
-// assuming that 'path' is defined at 'scope' and can be shortened
-#[allow(unused)]
-pub(crate) fn maybe_closest_known_scope_for_import_in_scope<'a>(path: &'a Path, scope: &'a ScopeChain, source: &'a GlobalContext) -> Option<&'a ScopeChain> {
-    // First assumption that it is relative import path
-    let scope_path = scope.self_path_ref();
-    let mut closest_scope: Option<&ScopeChain> = None;
-
-    let mut chunk = path.popped();
-    while !chunk.segments.is_empty() {
-        let candidate = scope_path.joined(&chunk);
-        closest_scope = source.maybe_scope_ref(&candidate);
-        if closest_scope.is_some() {
-            return closest_scope;
-        }
-        chunk = chunk.popped();
-    }
-    chunk = path.popped();
-    // Second assumption that it is global import path;
-    while !chunk.segments.is_empty() {
-        closest_scope = source.maybe_scope_ref(&chunk);
-        if closest_scope.is_some() {
-            return closest_scope;
-        }
-        chunk = chunk.popped();
-    }
+    reexport_dbg!("[reexport] derive_path_via_globs: no result found");
     None
 }
 
@@ -453,15 +554,198 @@ fn merge_reexport_chunks(mut base: Path, extension: &Path) -> Path {
 }
 
 // Find a scope where the leaf symbol is actually defined; return the most specific path.
-fn find_defined_object_path(target: &PathSegment, source: &GlobalContext) -> Option<Path> {
-    let mut best: Option<(usize, Path)> = None;
+// Now takes the base path context to prefer exact matches
+fn find_defined_object_path_with_context(target: &PathSegment, base_path: &Path, source: &GlobalContext) -> Option<Path> {
+    let mut exact_matches: Vec<Path> = Vec::new();
+    let mut best_shallow: Option<(usize, Path)> = None;
+    let mut best_deep: Option<(usize, Path)> = None;
+
     for scope in source.scope_register.inner.keys() {
         let scope_path = scope.self_path_ref();
         let candidate = scope_path.joined(&target.ident.to_path());
         if source.maybe_scope_item_ref_obj_first(&candidate).is_some() {
             let depth = candidate.segments.len();
-            match &best { Some((best_depth, _)) if *best_depth >= depth => {}, _ => best = Some((depth, candidate)) }
+
+            // Check if this candidate matches the path structure we're looking for
+            if is_exact_path_match(base_path, &candidate) {
+                exact_matches.push(candidate.clone());
+                continue;
+            }
+
+            // Track the deepest path (most specific definition)
+            match &best_deep {
+                Some((deepest_depth, _)) if *deepest_depth <= depth => {},
+                _ => best_deep = Some((depth, candidate.clone()))
+            }
+            // Also track the shallowest path
+            match &best_shallow {
+                Some((best_depth, _)) if *best_depth >= depth => {},
+                _ => best_shallow = Some((depth, candidate.clone()))
+            }
         }
     }
-    best.map(|(_, p)| p)
+
+    // Strongly prefer exact matches
+    if !exact_matches.is_empty() {
+        return Some(exact_matches[0].clone());
+    }
+
+    // Fallback to the deepest path (most specific actual definition)
+    if let Some((_, deep_path)) = best_deep {
+        return Some(deep_path);
+    }
+
+    // Fallback to the shallowest path
+    if let Some((_, shallow_path)) = best_shallow {
+        return Some(shallow_path);
+    }
+
+    None
+}
+
+// Helper function to find the best path candidate based on path structure matching
+fn find_best_path_candidate(target_path: &Path, candidates: &[(Path, Path)]) -> Option<(Path, Path)> {
+    if candidates.is_empty() {
+        return None;
+    }
+
+
+    // First, try to find exact path structure matches
+    for &(ref ancestor_path, ref candidate_path) in candidates.iter() {
+        if is_exact_path_match2(target_path, candidate_path) {
+            return Some((ancestor_path.clone(), candidate_path.clone()));
+        }
+    }
+
+    // If no exact match, return the first candidate (fallback to original behavior)
+    Some(candidates[0].clone())
+}
+
+// Import the exact path matching logic from reexport.rs
+fn is_exact_path_match2(base: &Path, candidate: &Path) -> bool {
+    // Check if the base path segments appear consecutively in the candidate path
+    if base.segments.is_empty() {
+        return true;
+    }
+
+    if candidate.segments.len() < base.segments.len() {
+        return false;
+    }
+
+    let base_segments: Vec<_> = base.segments.iter().collect();
+    let candidate_segments: Vec<_> = candidate.segments.iter().collect();
+
+    // Skip the first segment (usually the crate name) and look for the rest as a subsequence
+    for start_pos in 0..=(candidate_segments.len() - base_segments.len()) {
+        let mut matches = true;
+        for (i, base_seg) in base_segments.iter().enumerate() {
+            if candidate_segments[start_pos + i].ident != base_seg.ident {
+                matches = false;
+                break;
+            }
+        }
+        if matches {
+            return true;
+        }
+    }
+
+    // If no exact match, try pattern matching for common cases where paths have
+    // similar structure but with additional intermediate segments
+    if base_segments.len() >= 2 {
+        let first_base = &base_segments[0];
+        let last_base = base_segments.last().unwrap();
+
+        // Check if first and last segments match, and middle segments appear as a subsequence
+        if candidate_segments.first().map(|seg| seg.ident == first_base.ident).unwrap_or_default() &&
+            candidate_segments.last().map(|seg| seg.ident == last_base.ident).unwrap_or_default() {
+
+            // Check if the middle segments of base appear as a contiguous subsequence in candidate
+            return if base_segments.len() > 2 {
+                is_subsequence_contiguous(&base_segments[1..base_segments.len() - 1], &candidate_segments[1..candidate_segments.len() - 1])
+            } else {
+                true // Only first and last match, which is sufficient
+            }
+        }
+    }
+
+    false
+}
+
+// Helper function to check if `needle` appears as a contiguous subsequence in `haystack`
+fn is_subsequence_contiguous(needle: &[&syn::PathSegment], haystack: &[&syn::PathSegment]) -> bool {
+    if needle.is_empty() {
+        return true;
+    }
+    if haystack.len() < needle.len() {
+        return false;
+    }
+
+    for start_pos in 0..=(haystack.len() - needle.len()) {
+        let mut matches = true;
+        for (i, needle_seg) in needle.iter().enumerate() {
+            if haystack[start_pos + i].ident != needle_seg.ident {
+                matches = false;
+                break;
+            }
+        }
+        if matches {
+            return true;
+        }
+    }
+
+    false
+}
+
+
+pub fn find_best_ancestor<'a>(resolved_import_path: &Path, source: &'a GlobalContext) -> Option<&'a ScopeItemKind> {
+    // Find the best existing ancestor scope and scan its descendants for a matching leaf
+    let mut anc = resolved_import_path.popped();
+    let last_seg = resolved_import_path.segments.last().cloned();
+    let mut best_candidate: Option<(usize, Path, Path)> = None; // (depth, is_prelude, ancestor_path, candidate_path)
+
+    while !anc.segments.is_empty() {
+        if let Some(ancestor_scope) = source.maybe_scope_ref(&anc) {
+            if let Some(last_seg) = last_seg.as_ref() {
+                let ancestor_path = ancestor_scope.self_path_ref();
+
+                // Find all possible candidates and prioritize based on path structure
+                let mut candidates = Vec::new();
+                for scope_chain in source.scope_register.inner.keys() {
+                    let scope_path = scope_chain.self_path_ref();
+                    if ancestor_path.segments.len() <= scope_path.segments.len()
+                        && scope_path.segments.iter().zip(ancestor_path.segments.iter()).all(|(a, b)| a.ident == b.ident) {
+                        let already_matches_last = scope_path.segments.last().map(|s| s.ident == last_seg.ident).unwrap_or_default();
+                        let candidate = if already_matches_last { scope_path.clone() } else { scope_path.joined(&last_seg.ident.to_path()) };
+                        if source.maybe_scope_item_ref_obj_first(&candidate).is_some() {
+                            candidates.push((ancestor_path.clone(), candidate));
+                        }
+                    }
+                }
+
+                // Find the best candidate using path structure matching
+                if let Some(best_found) = find_best_path_candidate(&resolved_import_path, &candidates) {
+                    let depth = best_found.0.segments.len();
+                    let should_update = match &best_candidate {
+                        None => true,
+                        Some((best_depth, _, _)) => {
+                            // Prioritize exact matches, then depth
+                            depth > *best_depth
+                        }
+                    };
+
+                    if should_update {
+                        best_candidate = Some((depth, best_found.0, best_found.1));
+                    }
+                }
+            }
+        }
+        anc = anc.popped();
+    }
+
+    if let Some((_, ancestor_path, candidate)) = best_candidate {
+        println!("Found the best ancestor: {}", ancestor_path.to_token_stream());
+        source.maybe_scope_item_ref_obj_first(&candidate)
+    } else {
+        None
+    }
 }

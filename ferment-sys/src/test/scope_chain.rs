@@ -9,7 +9,7 @@ fn scope_chain_child_paths_and_display() {
     let root = ScopeChain::crate_root_with_ident(crate_ident.clone(), vec![]);
     // Add child module
     let child_ident: Ident = parse_quote!(utils);
-    let child = ScopeChain::child_mod(vec![], crate_ident, &child_ident, &root);
+    let child = ScopeChain::child_mod_attr_less(crate_ident, &child_ident, &root);
 
     // Self paths format as tokens
     assert_eq!(root.self_path_ref().to_token_stream().to_string(), "my_crate");

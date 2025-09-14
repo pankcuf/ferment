@@ -17,7 +17,7 @@ fn test_context() -> Rc<RefCell<GlobalContext>> {
 
 fn module_scope() -> ScopeChain {
     let root = ScopeChain::crate_root_with_ident(parse_quote!(my_crate), vec![]);
-    ScopeChain::child_mod(vec![], parse_quote!(my_crate), &parse_quote!(module), &root)
+    ScopeChain::child_mod_attr_less(parse_quote!(my_crate), &parse_quote!(module), &root)
 }
 
 #[test]

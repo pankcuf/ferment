@@ -16,7 +16,7 @@ ferment-macro.workspace = true
 
 [build-dependencies]
 cbindgen.workspace = true
-ferment-sys = { workspace = true, features = ["objc"]}
+ferment-sys = { workspace = true}
 
 [features]
 
