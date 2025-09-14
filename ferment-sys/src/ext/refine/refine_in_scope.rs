@@ -71,6 +71,7 @@ impl RefineInScope for TypeModelKind {
                 let crate_name = scope.crate_ident_as_path();
                 let crate_named_import_path = import_path.crate_named(&crate_name);
                 let mut model = ty_model.clone();
+                let time = std::time::SystemTime::now();
                 println!("[INFO] (Import) Refine Unknown import: {} ({}) in {}", model.as_type().to_token_stream(), import_path.to_token_stream(), scope.fmt_mid());
 
                 // Always refine nested arguments first and apply them into the model type
@@ -109,15 +110,15 @@ impl RefineInScope for TypeModelKind {
                             //println!("[INFO] (Import) Scope item refined: {}", updated);
                             *self = updated;
                         }
-                        println!("[WARN] Import refined as ScopeItem: {}", self.as_type().to_token_stream());
+                        println!("[WARN] Import refined as ScopeItem ({} ms): {}", std::time::SystemTime::now().duration_since(time).unwrap().as_millis(), self.as_type().to_token_stream());
                     } else if let Some(reexport) = ReexportSeek::Absolute.maybe_reexport(&resolved_import_path, source) {
                         // As a last resort, if reexport path is found but not present as an item in the scope register
                         // (e.g., via glob reexports), refine the model to that absolute path and treat it as an object.
                         refine_ty_with_import_path(model.ty_mut(), &reexport);
-                        println!("[WARN] Import refined as External: {}", reexport.to_token_stream());
+                        println!("[WARN] Import refined as External ({} ms): {}", std::time::SystemTime::now().duration_since(time).unwrap().as_millis(), reexport.to_token_stream());
                         *self = TypeModelKind::Object(model);
                     } else {
-                        println!("[WARN] Import Unknown: {}", model.as_type().to_token_stream());
+                        println!("[WARN] Import Unknown ({} ms): {}",  std::time::SystemTime::now().duration_since(time).unwrap().as_millis(), model.as_type().to_token_stream());
                         *self = TypeModelKind::Unknown(model)
                     }
                 }
@@ -360,17 +361,15 @@ fn determine_scope_item<'a>(new_ty_to_replace: &mut Type, ty_path: Path, scope: 
             // check parent + local
 
             // Respect absolute paths: if `ty_path` starts with crate ident or `crate`, do not join.
-            let is_absolute = ty_path.is_crate_based() || ty_path.segments.first().map(|s| s.ident == *parent.crate_ident_ref()).unwrap_or_default();
+            let is_absolute = ty_path.is_crate_based() || ty_path.segments.first().map(|s| s.ident.eq(parent.crate_ident_ref())).unwrap_or_default();
             let child_scope = if is_absolute { ty_path.clone() } else { parent_path.joined(&ty_path) };
             source.maybe_scope_item_ref_obj_first(&child_scope)
                 .inspect(|item| refine_ty_with_import_path(new_ty_to_replace, item.path()))
                 .or_else(||
                     ReexportSeek::new(is_absolute)
                         .maybe_reexport(&child_scope, source)
-                        .and_then(|reexport| source.maybe_scope_item_ref_obj_first(&reexport)
-                            .inspect(|item| refine_ty_with_import_path(new_ty_to_replace, item.path())))
-                        .or_else(|| source.maybe_scope_item_ref_obj_first(parent_path)
-                            .inspect(|item| refine_ty_with_import_path(new_ty_to_replace, item.path())))
+                        .and_then(|reexport| source.maybe_scope_item_ref_obj_first(&reexport))
+                        .or_else(|| source.maybe_scope_item_ref_obj_first(parent_path))
                         .or_else(|| source.maybe_scope_item_ref_obj_first(&parent_path.joined(&ty_path))
                             .inspect(|item| refine_ty_with_import_path(new_ty_to_replace, item.path()))))
         }

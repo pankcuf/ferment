@@ -2,6 +2,43 @@
 
 This plan consolidates the existing TODOs and code `TODO/FIXME` markers into a structured roadmap. It groups work by themes, calls out priorities, and proposes success criteria. Use this to open GitHub Issues and (optionally) a GitHub Project board.
 
+## Summary 
+
+Ferment Processing Pipeline Overview:
+
+1. Crate Discovery & AST Parsing
+
+Ferment traverses all crates defined in the build configuration, parsing Rust source files into syntax trees using the syn crate. It identifies items marked with
+#[ferment_macro::export] for FFI generation.
+
+2. Scope Chain Construction
+
+Ferment builds a comprehensive scope registry mapping module paths to their contents, creating a global context that tracks all available types, functions, traits, and
+imports across all analyzed crates.
+
+3. Path Resolution & Import Chain Following
+
+The refinement phase resolves all path references by following import chains, glob imports (use mod::*), and re-exports. This is where the current performance bottleneck
+occurs - for each unresolved path, it performs expensive scope traversals to find the actual definition.
+
+4. Type Model Generation
+
+Ferment creates "fermented" equivalents of Rust types - converting structs to C-compatible representations with #[repr(C)], generating vtables for traits, and creating
+conversion functions between Rust and FFI types.
+
+5. FFI Binding Generation
+
+The final step generates C bindings via cbindgen, with constructor/destructor functions (_ctor/_destroy), automatic From/To trait implementations, and language-specific
+bindings (Objective-C, Java).
+
+The Performance Bottleneck:
+
+The current slowness occurs in step 3 - path resolution. For complex projects with hundreds of modules and thousands of cross-references, the algorithm:
+- Performs O(n²) scope traversals for each unresolved path
+- Re-scans the entire scope registry repeatedly
+- Doesn't build efficient indices for common lookup patterns
+- Processes paths individually rather than in batches
+
 ## Status Summary
 
 - Core FFI generation: structs, enums, type aliases (with caveats), functions, and traits (vtable + trait objects) — working.
