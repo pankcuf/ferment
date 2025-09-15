@@ -94,7 +94,14 @@ impl RefineInScope for TypeModelKind {
                 let _nested_refined = refine_nested_arguments(&mut model, scope, source);
 
                 // Fast path: Try O(1) lookup in resolved imports map with scope chain traversal
-                let resolved_import_path = if let Some(resolved) = resolve_import_with_scope_chain(scope, &crate_named_import_path, source) {
+                // Extract the import alias (last segment) since that's what appears in the resolved imports map
+                let import_alias = if let Some(last_segment) = crate_named_import_path.segments.last() {
+                    last_segment.ident.to_path()
+                } else {
+                    crate_named_import_path.clone()
+                };
+
+                let resolved_import_path = if let Some(resolved) = resolve_import_with_scope_chain(scope, &import_alias, source) {
                     resolved
                 } else {
                     // Try the enhanced import resolver (checks parent scopes too)
@@ -117,6 +124,7 @@ impl RefineInScope for TypeModelKind {
                 } else {
 
                     let scope_path = model.lifetimes_cleaned().pointer_less();
+                    println!("[INFO] Import resolved as ({} ms): {}", std::time::SystemTime::now().duration_since(time).unwrap().as_millis(), resolved_import_path.to_token_stream());
                     // Try direct resolution, then descendMayant search under nearest existing ancestor, then absolute reexport.
                     if let Some(found_item) = source.maybe_scope_item_ref_obj_first(&resolved_import_path)
                         .or_else(|| find_best_ancestor(&resolved_import_path, source))
@@ -476,45 +484,37 @@ pub fn maybe_refined_ty_for_nested_arg_in_scope(nested_arg: &mut NestedArgument,
 
 }
 
+
 /// Fast O(1) import resolution with proper scope chain traversal
 /// Checks current scope, then parent scopes for non-mod items
 /// For traits/impl/functions, checks up to grandparent scope
 fn resolve_import_with_scope_chain(scope: &ScopeChain, import_path: &Path, source: &GlobalContext) -> Option<Path> {
-    // Try current scope first
-    if let Some(resolved) = source.imports.resolve_import_in_scope(scope, import_path) {
-        return Some(resolved.clone());
+    // Build the complete scope chain to check
+    let mut scopes_to_check = Vec::new();
+    let mut current_scope = Some(scope);
+
+    // Collect all scopes in the inheritance chain
+    while let Some(scope) = current_scope {
+        scopes_to_check.push(scope);
+
+        current_scope = match scope {
+            ScopeChain::CrateRoot { .. } | ScopeChain::Mod { .. } => None, // Stop at module boundaries
+            ScopeChain::Fn { parent, .. } |
+            ScopeChain::Trait { parent, .. } |
+            ScopeChain::Object { parent, .. } |
+            ScopeChain::Impl { parent, .. } => Some(parent),
+        };
     }
 
-    // For non-mod scopes, check parent scopes
-    match scope {
-        ScopeChain::CrateRoot { .. } | ScopeChain::Mod { .. } => {
-            // Mod scopes don't inherit imports from parents
-            None
-        },
-        ScopeChain::Fn { parent, .. } => {
-            // Functions can inherit from parent and grandparent
-            resolve_import_with_scope_chain(parent, import_path, source)
-        },
-        ScopeChain::Trait { parent, .. } |
-        ScopeChain::Object { parent, .. } |
-        ScopeChain::Impl { parent, .. } => {
-            // Try parent scope first
-            if let Some(resolved) = source.imports.resolve_import_in_scope(parent, import_path) {
-                return Some(resolved.clone());
-            }
-
-            // For traits/impl/functions, also check grandparent if parent is not a mod
-            match &**parent {
-                ScopeChain::CrateRoot { .. } | ScopeChain::Mod { .. } => None,
-                ScopeChain::Trait { parent: grandparent, .. } |
-                ScopeChain::Object { parent: grandparent, .. } |
-                ScopeChain::Impl { parent: grandparent, .. } |
-                ScopeChain::Fn { parent: grandparent, .. } => {
-                    source.imports.resolve_import_in_scope(grandparent, import_path).map(|p| p.clone())
-                }
-            }
+    // Check each scope in the chain for the import
+    for check_scope in scopes_to_check {
+        if let Some(resolved) = source.imports.resolve_import_in_scope(check_scope, import_path) {
+            println!("[INFO] Import {} found in scope chain: {} (from {})", resolved.to_token_stream(), check_scope.fmt_short(), scope.fmt_short());
+            return Some(resolved.clone());
         }
     }
+
+    None
 }
 
 pub fn refine_ty_with_import_path(ty: &mut Type, crate_named_import_path: &Path) {

@@ -371,7 +371,7 @@ impl ImportResolver {
 
     /// Builds the resolved imports map during preprocessing
     pub fn build_resolved_imports_map(&mut self, scope_resolver: &ScopeResolver) {
-        refine_import_dbg!("build_resolved_imports_map");
+        //refine_import_dbg!("build_resolved_imports_map");
         // Clear any existing resolved imports
         self.resolved_imports.clear();
 
@@ -387,12 +387,14 @@ impl ImportResolver {
     }
 
     fn resolve_imports_for_scope(&mut self, scope: &ScopeChain, scope_resolver: &ScopeResolver) {
-        refine_import_dbg!("resolve_imports_for_scope: {}", scope.fmt_short());
+        //refine_import_dbg!("resolve_imports_for_scope: {}", scope.fmt_short());
         // 1. Process direct imports from inner map
         if let Some(scope_imports) = self.inner.get(scope) {
             for (alias_path, import_path) in scope_imports {
                 let resolved = self.determine_full_qualified_path(import_path, scope, scope_resolver);
-                refine_import_dbg!("resolve_imports_for_scope.direct.insert {} as {} in {}", alias_path.to_token_stream(), resolved.to_token_stream(), scope.fmt_short());
+                if alias_path.to_token_stream().to_string().contains("ProtocolError") && scope.to_string().contains("emergency_action") {
+                    refine_import_dbg!("resolve_imports_for_scope.direct.insert {} as {} in {}", alias_path.to_token_stream(), resolved.to_token_stream(), scope.fmt_short());
+                }
                 self.resolved_imports.insert((scope.clone(), alias_path.clone()), resolved);
             }
         }
@@ -401,7 +403,9 @@ impl ImportResolver {
         if let Some(glob_imports) = self.materialized_globs.get(scope).cloned() {
             for (alias_path, import_path) in glob_imports {
                 let resolved = self.determine_full_qualified_path(&import_path, scope, scope_resolver);
-                refine_import_dbg!("resolve_imports_for_scope.glob.insert {} as {} in {}", alias_path.to_token_stream(), resolved.to_token_stream(), scope.fmt_short());
+                if alias_path.to_token_stream().to_string().contains("ProtocolError") && scope.to_string().contains("emergency_action") {
+                    refine_import_dbg!("resolve_imports_for_scope.glob.insert {} as {} in {}", alias_path.to_token_stream(), resolved.to_token_stream(), scope.fmt_short());
+                }
                 self.resolved_imports.insert((scope.clone(), alias_path), resolved);
             }
         }
@@ -413,23 +417,33 @@ impl ImportResolver {
         declaring_scope: &ScopeChain,
         scope_resolver: &ScopeResolver
     ) -> Path {
-        refine_import_dbg!("determine_full_qualified_path: {} in {}", import_path.to_token_stream(), declaring_scope.fmt_short());
+        if import_path.to_token_stream().to_string().contains("ProtocolError") && declaring_scope.to_string().contains("emergency_action") {
+            refine_import_dbg!("determine_full_qualified_path: {} in {}", import_path.to_token_stream(), declaring_scope.fmt_short());
+        }
         // Step 1: Normalize relative imports (crate/self/super)
         let normalized = self.normalize_import_path(import_path, declaring_scope);
-        refine_import_dbg!("normalized: {}", normalized.to_token_stream());
+        if normalized.to_token_stream().to_string().contains("ProtocolError") && declaring_scope.to_string().contains("emergency_action") {
+            refine_import_dbg!("normalized: {}", normalized.to_token_stream());
+        }
         // Step 2: Follow reexport chains to final destination
         let reexport_resolved = self.resolve_through_reexports(&normalized, scope_resolver);
-        refine_import_dbg!("reexport_resolved: {}", reexport_resolved.to_token_stream());
+        if reexport_resolved.to_token_stream().to_string().contains("ProtocolError") && declaring_scope.to_string().contains("emergency_action") {
+            refine_import_dbg!("reexport_resolved: {}", reexport_resolved.to_token_stream());
+        }
         // Step 3: Validate against scope registry
         let validated = self.validate_against_scope_registry(&reexport_resolved, scope_resolver);
-        refine_import_dbg!("validated: {}", validated.to_token_stream());
+        if validated.to_token_stream().to_string().contains("ProtocolError") && declaring_scope.to_string().contains("emergency_action") {
+            refine_import_dbg!("validated: {}", validated.to_token_stream());
+        }
         validated
     }
 
     /// Normalizes relative import paths to absolute paths
     pub fn normalize_import_path(&self, path: &Path, scope: &ScopeChain) -> Path {
         if path.segments.is_empty() {
-            refine_import_dbg!("normalize_import_path:empty {} in {}", path.to_token_stream(), scope.fmt_short());
+            if path.to_token_stream().to_string().contains("ProtocolError") && scope.to_string().contains("emergency_action") {
+                refine_import_dbg!("normalize_import_path:empty {} in {}", path.to_token_stream(), scope.fmt_short());
+            }
             return path.clone();
         }
 
@@ -439,7 +453,9 @@ impl ImportResolver {
                 // crate::foo::Bar -> actual_crate_name::foo::Bar
                 let mut normalized = path.clone();
                 normalized.segments.first_mut().unwrap().ident = scope.crate_ident_ref().clone();
-                refine_import_dbg!("normalize_import_path:crate {} in {}", normalized.to_token_stream(), scope.fmt_short());
+                if normalized.to_token_stream().to_string().contains("ProtocolError") && scope.to_string().contains("emergency_action") {
+                    refine_import_dbg!("normalize_import_path:crate {} in {}", normalized.to_token_stream(), scope.fmt_short());
+                }
                 normalized
             },
             SELF => {
@@ -447,7 +463,9 @@ impl ImportResolver {
                 let tail: Vec<_> = path.segments.iter().skip(1).cloned().collect();
                 let mut segments = scope.self_path_ref().segments.clone();
                 segments.extend(tail);
-                refine_import_dbg!("normalize_import_path:self {} in {}", segments.to_token_stream(), scope.fmt_short());
+                if segments.to_token_stream().to_string().contains("ProtocolError") && scope.to_string().contains("emergency_action") {
+                    refine_import_dbg!("normalize_import_path:self {} in {}", segments.to_token_stream(), scope.fmt_short());
+                }
                 Path { leading_colon: path.leading_colon, segments }
             },
             SUPER => {
@@ -465,57 +483,79 @@ impl ImportResolver {
 
                 let tail: Vec<_> = path.segments.iter().skip(super_count).cloned().collect();
                 base.segments.extend(tail);
-                refine_import_dbg!("normalize_import_path:super {} in {}", base.to_token_stream(), scope.fmt_short());
+                if base.to_token_stream().to_string().contains("ProtocolError") && scope.to_string().contains("emergency_action") {
+                    refine_import_dbg!("normalize_import_path:super {} in {}", base.to_token_stream(), scope.fmt_short());
+                }
                 base
             },
             _ => {
                 // Already absolute or external crate
-                refine_import_dbg!("normalize_import_path:abs_or_ext {} in {}", path.to_token_stream(), scope.fmt_short());
+                if path.to_token_stream().to_string().contains("ProtocolError") && scope.to_string().contains("emergency_action") {
+                    refine_import_dbg!("normalize_import_path:abs_or_ext {} in {}", path.to_token_stream(), scope.fmt_short());
+                }
                 path.clone()
             }
         }
     }
 
     /// Resolves through reexport chains by finding actual item definitions
+    /// This implements proper verification that items actually exist
     fn resolve_through_reexports(&self, path: &Path, scope_resolver: &ScopeResolver) -> Path {
-        refine_import_dbg!("resolve_through_reexports: {}", path.to_token_stream());
-        // For single-segment paths, find the actual definition
+        // if path.to_token_stream().to_string().contains("ProtocolError") {
+        //     refine_import_dbg!("resolve_through_reexports: {}", path.to_token_stream());
+        // }
+
+        // Single-segment path: search all scopes for actual item definition
         if path.segments.len() == 1 {
-            if let Some(actual_definition) = self.find_item_definition_in_scopes(path, scope_resolver) {
-                refine_import_dbg!("resolve_through_reexports:found_item_definition_in_scopes: {}", actual_definition.to_token_stream());
+            if let Some(actual_definition) = self.find_verified_item_definition(path, scope_resolver) {
+                if actual_definition.to_token_stream().to_string().contains("ProtocolError") {
+                    refine_import_dbg!("resolve_through_reexports:found_verified_item: {}", actual_definition.to_token_stream());
+                }
                 return actual_definition;
             }
         }
 
-        // For multi-segment paths, try to resolve each segment progressively
-        // Start with the full path and work backwards to find the deepest valid scope
-        let mut test_path = path.clone();
-        while test_path.segments.len() > 0 {
-            if let Some(scope_chain) = scope_resolver.maybe_scope(&test_path) {
-                // Found a valid scope, check if it contains actual items matching our target
+        // Multi-segment path: check if the exact path exists and contains the target item
+        if let Some(last_segment) = path.segments.last() {
+            let target_ident = &last_segment.ident;
+
+            // First check if the full path exists as a scope with the target item
+            if let Some(scope_chain) = scope_resolver.maybe_scope(path) {
                 if let Some(type_chain) = scope_resolver.get(scope_chain) {
-                    // If this is the full path and it exists as a scope with items, it's resolved
-                    if test_path.segments.len() == path.segments.len() {
-                        refine_import_dbg!("resolve_through_reexports:full_exists_as_a_scope: {}", path.to_token_stream());
-                        return path.clone();
+                    // Check if this scope actually contains the target item
+                    for (type_ref, object_kind) in &type_chain.inner {
+                        if let crate::kind::ObjectKind::Item(_, _) = object_kind {
+                            if let Some(item_segment) = type_ref.to_path().segments.last() {
+                                if item_segment.ident == *target_ident {
+                                    if path.to_token_stream().to_string().contains("ProtocolError") {
+                                        refine_import_dbg!("resolve_through_reexports:verified_exact_path: {}", path.to_token_stream());
+                                    }
+                                    return path.clone();
+                                }
+                            }
+                        }
                     }
+                }
+            }
 
-                    // Otherwise, try to find the remaining segments as items within this scope
-                    let remaining_segments: Vec<_> = path.segments.iter()
-                        .skip(test_path.segments.len())
-                        .collect();
+            // Try progressive truncation to find valid base scope + target item
+            let mut base_path = path.clone();
+            while base_path.segments.len() > 1 {
+                base_path.segments.pop();
 
-                    if remaining_segments.len() == 1 {
-                        // Single remaining segment - look for it as an item
-                        let target_ident = &remaining_segments[0].ident;
+                if let Some(scope_chain) = scope_resolver.maybe_scope(&base_path) {
+                    if let Some(type_chain) = scope_resolver.get(scope_chain) {
+                        // Check if this scope contains our target item
                         for (type_ref, object_kind) in &type_chain.inner {
                             if let crate::kind::ObjectKind::Item(_, _) = object_kind {
-                                if let Some(last_segment) = type_ref.to_path().segments.last() {
-                                    if last_segment.ident == *target_ident {
-                                        // Found the actual item definition
-                                        let joined = scope_chain.self_path_ref().joined(&target_ident.to_path());
-                                        refine_import_dbg!("resolve_through_reexports:found_actual: {}", joined.to_token_stream());
-                                        return joined;
+                                if let Some(item_segment) = type_ref.to_path().segments.last() {
+                                    if item_segment.ident == *target_ident {
+                                        // Found the target item in this scope
+                                        let verified_path = scope_chain.self_path_ref().joined(&target_ident.to_path());
+                                        if verified_path.to_token_stream().to_string().contains("ProtocolError") {
+                                            refine_import_dbg!("resolve_through_reexports:verified_in_base: {}", verified_path.to_token_stream());
+                                        }
+                                        return verified_path;
                                     }
                                 }
                             }
@@ -524,16 +564,67 @@ impl ImportResolver {
                 }
             }
 
-            // Remove the last segment and try again
-            if test_path.segments.is_empty() {
-                break;
+            // Last resort: search all scopes for this specific item
+            if let Some(verified_definition) = self.find_verified_item_definition(&target_ident.to_path(), scope_resolver) {
+                // if verified_definition.to_token_stream().to_string().contains("ProtocolError") {
+                //     refine_import_dbg!("resolve_through_reexports:verified_fallback: {}", verified_definition.to_token_stream());
+                // }
+                return verified_definition;
             }
-            test_path.segments.pop();
         }
 
-        // If no resolution found, return original path
-        refine_import_dbg!("resolve_through_reexports:not_found: {}", path.to_token_stream());
+        // Only return original path if we couldn't verify the item exists anywhere
+        if path.to_token_stream().to_string().contains("ProtocolError") {
+            refine_import_dbg!("resolve_through_reexports:unverified_fallback: {}", path.to_token_stream());
+        }
         path.clone()
+    }
+
+    /// Find verified item definition - ensures the item actually exists in the scope
+    fn find_verified_item_definition(&self, item_name: &Path, scope_resolver: &ScopeResolver) -> Option<Path> {
+        if item_name.segments.len() != 1 {
+            return None;
+        }
+
+        let target_ident = &item_name.segments[0].ident;
+        let mut best_match: Option<Path> = None;
+        let mut max_specificity = 0;
+
+        // Search all scopes to find where this item is actually defined
+        for (scope_path, type_chain) in scope_resolver.inner.iter() {
+            for (type_ref, object_kind) in &type_chain.inner {
+                // Only consider actual items, not type references
+                if let crate::kind::ObjectKind::Item(_, _) = object_kind {
+                    if let Some(last_segment) = type_ref.to_path().segments.last() {
+                        if last_segment.ident == *target_ident {
+                            // Found a verified item definition
+                            let scope_self_path = scope_path.self_path_ref();
+
+                            // Check if scope path already ends with the target item
+                            let full_path = if scope_self_path.segments.last()
+                                .map(|seg| seg.ident == *target_ident)
+                                .unwrap_or(false) {
+                                // Scope already ends with target, don't duplicate
+                                scope_self_path.clone()
+                            } else {
+                                // Need to append target to scope path
+                                scope_self_path.joined(&target_ident.to_path())
+                            };
+
+                            let specificity = full_path.segments.len();
+
+                            // Prefer the most specific (longest) path
+                            if specificity > max_specificity {
+                                max_specificity = specificity;
+                                best_match = Some(full_path);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        best_match
     }
 
     /// Validates path against scope registry to ensure it points to real items
@@ -608,7 +699,9 @@ impl ImportResolver {
             }
 
             if let Some(resolved) = self.resolve_import_path_fully(&import_path, &scope, scope_resolver) {
-                refine_import_dbg!("resolve_direct_imports_pass.insert {} as {} in {}", alias.to_token_stream(), resolved.to_token_stream(), scope.fmt_short());
+                if alias.to_token_stream().to_string().contains("ProtocolError") && scope.to_string().contains("emergency_action") {
+                    refine_import_dbg!("resolve_direct_imports_pass.insert {} as {} in {}", alias.to_token_stream(), resolved.to_token_stream(), scope.fmt_short());
+                }
                 self.resolved_imports.insert(key, resolved);
             }
         }
@@ -632,7 +725,9 @@ impl ImportResolver {
             }
 
             if let Some(resolved) = self.resolve_import_path_fully(&import_path, &scope, scope_resolver) {
-                refine_import_dbg!("resolve_glob_imports_pass.insert {} as {} in {}", alias.to_token_stream(), resolved.to_token_stream(), scope.fmt_short());
+                if alias.to_token_stream().to_string().contains("ProtocolError") && scope.to_string().contains("emergency_action") {
+                    refine_import_dbg!("resolve_glob_imports_pass.insert {} as {} in {}", alias.to_token_stream(), resolved.to_token_stream(), scope.fmt_short());
+                }
                 self.resolved_imports.insert(key, resolved);
             }
         }
@@ -640,126 +735,120 @@ impl ImportResolver {
 
     /// Resolve import path using only normalized paths and existing resolved imports
     fn resolve_import_path_fully(&self, import_path: &Path, declaring_scope: &ScopeChain, scope_resolver: &ScopeResolver) -> Option<Path> {
-        // Step 1: Normalize relative imports
-        refine_import_dbg!("resolve_import_path_fully: {} in {}", import_path.to_token_stream(), declaring_scope.fmt_short());
-        let normalized = self.normalize_import_path(import_path, declaring_scope);
-
-        // Step 2: Try to resolve through import chains using our own data
-        if let Some(resolved_through_imports) = self.resolve_through_import_chains(&normalized, declaring_scope) {
-            refine_import_dbg!("resolve_import_path_fully:resolved_through_imports: {}", resolved_through_imports.to_token_stream());
-            return Some(resolved_through_imports);
+        // Use the corrected determine_full_qualified_path which includes proper reexport resolution
+        if import_path.to_token_stream().to_string().contains("ProtocolError") && declaring_scope.to_string().contains("emergency_action") {
+            refine_import_dbg!("resolve_import_path_fully: {} in {}", import_path.to_token_stream(), declaring_scope.fmt_short());
         }
 
-        // Step 3: Check if path exists in scope registry
-        if scope_resolver.maybe_scope(&normalized).is_some() {
-            refine_import_dbg!("resolve_import_path_fully:resolved_as_Scope: {}", normalized.to_token_stream());
-            return Some(normalized);
+        let resolved = self.determine_full_qualified_path(import_path, declaring_scope, scope_resolver);
+
+        if resolved.to_token_stream().to_string().contains("ProtocolError") && declaring_scope.to_string().contains("emergency_action") {
+            refine_import_dbg!("resolve_import_path_fully:final_result: {}", resolved.to_token_stream());
         }
 
-        // Step 4: For single-segment paths (like TxOut), search through all scopes to find where they're defined
-        if normalized.segments.len() == 1 {
-            if let Some(actual_path) = self.find_item_definition_in_scopes(&normalized, scope_resolver) {
-                refine_import_dbg!("resolve_import_path_fully:found_item_definition_in_scopes {}", actual_path.to_token_stream());
-                return Some(actual_path);
-            }
-        }
-
-        // Step 5: Try progressive truncation to find valid base
-        self.find_valid_base_path(&normalized, scope_resolver)
+        Some(resolved)
     }
 
-    /// Resolve through import chains without using ReexportSeek
-    fn resolve_through_import_chains(&self, path: &Path, declaring_scope: &ScopeChain) -> Option<Path> {
-        if path.segments.is_empty() {
-            return None;
-        }
-
-        // Check if the first segment is an import in the current scope or parent scopes
-        let first_segment = &path.segments[0].ident;
-        let first_segment_path = first_segment.to_path();
-
-        // Try current scope first
-        if let Some(resolved_first) = self.resolve_first_segment_in_scope(&first_segment_path, declaring_scope) {
-            return Some(self.replace_first_segment(path, &resolved_first));
-        }
-
-        // Try parent scopes
-        let mut current_scope = declaring_scope;
-        loop {
-            match current_scope {
-                ScopeChain::CrateRoot { .. } => break,
-                ScopeChain::Mod { parent, .. } |
-                ScopeChain::Fn { parent, .. } |
-                ScopeChain::Trait { parent, .. } |
-                ScopeChain::Object { parent, .. } |
-                ScopeChain::Impl { parent, .. } => {
-                    if let Some(resolved_first) = self.resolve_first_segment_in_scope(&first_segment_path, parent) {
-                        return Some(self.replace_first_segment(path, &resolved_first));
-                    }
-                    current_scope = parent;
-                }
-            }
-        }
-
-        None
-    }
-
-    fn resolve_first_segment_in_scope(&self, first_segment_path: &Path, scope: &ScopeChain) -> Option<Path> {
-        // Check direct imports
-        if let Some(imports) = self.inner.get(scope) {
-            if let Some(resolved) = imports.get(first_segment_path) {
-                return Some(resolved.clone());
-            }
-        }
-
-        // Check materialized glob imports
-        if let Some(globs) = self.materialized_globs.get(scope) {
-            if let Some(resolved) = globs.get(first_segment_path) {
-                return Some(resolved.clone());
-            }
-        }
-
-        // Check already resolved imports
-        let key = (scope.clone(), first_segment_path.clone());
-        if let Some(resolved) = self.resolved_imports.get(&key) {
-            return Some(resolved.clone());
-        }
-
-        None
-    }
-
-    fn replace_first_segment(&self, original_path: &Path, replacement: &Path) -> Path {
-        let mut new_segments = replacement.segments.clone();
-
-        // Add remaining segments from original path (skip first segment)
-        for segment in original_path.segments.iter().skip(1) {
-            new_segments.push(segment.clone());
-        }
-
-        Path {
-            leading_colon: original_path.leading_colon,
-            segments: new_segments,
-        }
-    }
-
-    fn find_valid_base_path(&self, path: &Path, scope_resolver: &ScopeResolver) -> Option<Path> {
-        let mut test_path = path.clone();
-        while test_path.segments.len() > 1 {
-            test_path.segments.pop();
-            if scope_resolver.maybe_scope(&test_path).is_some() {
-                // Reconstruct with validated base + remaining segments
-                let remaining: Vec<_> = path.segments.iter()
-                    .skip(test_path.segments.len())
-                    .cloned()
-                    .collect();
-                test_path.segments.extend(remaining);
-                return Some(test_path);
-            }
-        }
-
-        // If no valid base found, return the original normalized path
-        Some(path.clone())
-    }
+    // /// Resolve through import chains without using ReexportSeek
+    // fn resolve_through_import_chains(&self, path: &Path, declaring_scope: &ScopeChain) -> Option<Path> {
+    //     if path.segments.is_empty() {
+    //         return None;
+    //     }
+    //
+    //     // Check if the first segment is an import in the current scope or parent scopes
+    //     let first_segment = &path.segments[0].ident;
+    //     let first_segment_path = first_segment.to_path();
+    //
+    //     // Try current scope first
+    //     if let Some(resolved_first) = self.resolve_first_segment_in_scope(&first_segment_path, declaring_scope) {
+    //         let replaced = self.replace_first_segment(path, &resolved_first);
+    //         if (replaced.to_token_stream().to_string().contains("ProtocolError")) && declaring_scope.to_string().contains("emergency_action") {
+    //             refine_import_dbg!("resolve_import_path_fully:found_item_definition_in_scopes {}", replaced.to_token_stream());
+    //         }
+    //         return Some(replaced);
+    //     }
+    //
+    //     // Try parent scopes
+    //     let mut current_scope = declaring_scope;
+    //     loop {
+    //         match current_scope {
+    //             ScopeChain::CrateRoot { .. } => break,
+    //             ScopeChain::Mod { parent, .. } |
+    //             ScopeChain::Fn { parent, .. } |
+    //             ScopeChain::Trait { parent, .. } |
+    //             ScopeChain::Object { parent, .. } |
+    //             ScopeChain::Impl { parent, .. } => {
+    //                 if let Some(resolved_first) = self.resolve_first_segment_in_scope(&first_segment_path, parent) {
+    //                     let replaced = self.replace_first_segment(path, &resolved_first);
+    //                     if (replaced.to_token_stream().to_string().contains("ProtocolError")) && declaring_scope.to_string().contains("emergency_action") {
+    //                         refine_import_dbg!("resolve_import_path_fully:found_item_definition_in_scopes {}", replaced.to_token_stream());
+    //                     }
+    //                     return Some(replaced);
+    //                 }
+    //                 current_scope = parent;
+    //             }
+    //         }
+    //     }
+    //
+    //     None
+    // }
+    //
+    // fn resolve_first_segment_in_scope(&self, first_segment_path: &Path, scope: &ScopeChain) -> Option<Path> {
+    //     // Check direct imports
+    //     if let Some(imports) = self.inner.get(scope) {
+    //         if let Some(resolved) = imports.get(first_segment_path) {
+    //             return Some(resolved.clone());
+    //         }
+    //     }
+    //
+    //     // Check materialized glob imports
+    //     if let Some(globs) = self.materialized_globs.get(scope) {
+    //         if let Some(resolved) = globs.get(first_segment_path) {
+    //             return Some(resolved.clone());
+    //         }
+    //     }
+    //
+    //     // Check already resolved imports
+    //     let key = (scope.clone(), first_segment_path.clone());
+    //     if let Some(resolved) = self.resolved_imports.get(&key) {
+    //         return Some(resolved.clone());
+    //     }
+    //
+    //     None
+    // }
+    //
+    // fn replace_first_segment(&self, original_path: &Path, replacement: &Path) -> Path {
+    //     let mut new_segments = replacement.segments.clone();
+    //
+    //     // Add remaining segments from original path (skip first segment)
+    //     for segment in original_path.segments.iter().skip(1) {
+    //         new_segments.push(segment.clone());
+    //     }
+    //
+    //     Path {
+    //         leading_colon: original_path.leading_colon,
+    //         segments: new_segments,
+    //     }
+    // }
+    //
+    // fn find_valid_base_path(&self, path: &Path, scope_resolver: &ScopeResolver) -> Option<Path> {
+    //     let mut test_path = path.clone();
+    //     while test_path.segments.len() > 1 {
+    //         test_path.segments.pop();
+    //         if scope_resolver.maybe_scope(&test_path).is_some() {
+    //             // Reconstruct with validated base + remaining segments
+    //             let remaining: Vec<_> = path.segments.iter()
+    //                 .skip(test_path.segments.len())
+    //                 .cloned()
+    //                 .collect();
+    //             test_path.segments.extend(remaining);
+    //             return Some(test_path);
+    //         }
+    //     }
+    //
+    //     // If no valid base found, return the original normalized path
+    //     Some(path.clone())
+    // }
 
     /// Fast O(1) lookup during refinement
     pub fn resolve_import_in_scope(&self, scope: &ScopeChain, import_path: &Path) -> Option<&Path> {
@@ -786,42 +875,42 @@ impl ImportResolver {
         Some(target_path.clone())
     }
 
-    /// Search through all scopes to find where a single-segment item (like TxOut) is actually defined
-    fn find_item_definition_in_scopes(&self, item_name: &Path, scope_resolver: &ScopeResolver) -> Option<Path> {
-        if item_name.segments.len() != 1 {
-            return None;
-        }
-
-        let target_ident = &item_name.segments[0].ident;
-        let mut candidates = Vec::new();
-
-        // Search through all scopes in the scope resolver to find all potential definitions
-        for (scope_path, type_chain) in scope_resolver.inner.iter() {
-            // Check if this scope contains the target item
-            for (type_ref, object_kind) in &type_chain.inner {
-                // Only look for actual items, not type references
-                if let crate::kind::ObjectKind::Item(_, _) = object_kind {
-                    // Check if this item matches our target
-                    if let Some(last_segment) = type_ref.to_path().segments.last() {
-                        if last_segment.ident == *target_ident {
-                            // Found a potential match! Store the full path
-                            let full_path = scope_path.self_path_ref().joined(&target_ident.to_path());
-                            candidates.push((full_path, scope_path.clone()));
-                        }
-                    }
-                }
-            }
-        }
-
-        // If we found candidates, prefer the most specific (longest) path
-        // This ensures we get the actual definition, not reexports
-        if !candidates.is_empty() {
-            candidates.sort_by(|a, b| b.0.segments.len().cmp(&a.0.segments.len()));
-            return Some(candidates[0].0.clone());
-        }
-
-        None
-    }
+    // /// Search through all scopes to find where a single-segment item (like TxOut) is actually defined
+    // fn find_item_definition_in_scopes(&self, item_name: &Path, scope_resolver: &ScopeResolver) -> Option<Path> {
+    //     if item_name.segments.len() != 1 {
+    //         return None;
+    //     }
+    //
+    //     let target_ident = &item_name.segments[0].ident;
+    //     let mut candidates = Vec::new();
+    //
+    //     // Search through all scopes in the scope resolver to find all potential definitions
+    //     for (scope_path, type_chain) in scope_resolver.inner.iter() {
+    //         // Check if this scope contains the target item
+    //         for (type_ref, object_kind) in &type_chain.inner {
+    //             // Only look for actual items, not type references
+    //             if let crate::kind::ObjectKind::Item(_, _) = object_kind {
+    //                 // Check if this item matches our target
+    //                 if let Some(last_segment) = type_ref.to_path().segments.last() {
+    //                     if last_segment.ident == *target_ident {
+    //                         // Found a potential match! Store the full path
+    //                         let full_path = scope_path.self_path_ref().joined(&target_ident.to_path());
+    //                         candidates.push((full_path, scope_path.clone()));
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     }
+    //
+    //     // If we found candidates, prefer the most specific (longest) path
+    //     // This ensures we get the actual definition, not reexports
+    //     if !candidates.is_empty() {
+    //         candidates.sort_by(|a, b| b.0.segments.len().cmp(&a.0.segments.len()));
+    //         return Some(candidates[0].0.clone());
+    //     }
+    //
+    //     None
+    // }
 
     /// Find where an item is actually defined (not just reexported)
     /// This returns the most specific (longest) path where the item is defined
