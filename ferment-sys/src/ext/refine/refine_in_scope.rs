@@ -104,16 +104,23 @@ impl RefineInScope for TypeModelKind {
                 let resolved_import_path = if let Some(resolved) = resolve_import_with_scope_chain(scope, &import_alias, source) {
                     resolved
                 } else {
-                    // Try the enhanced import resolver (checks parent scopes too)
-                    use crate::ext::GenericBoundKey;
-                    let key = GenericBoundKey::Path(crate_named_import_path.clone());
-                    if let Some(resolved) = source.imports.resolve_import_enhanced(scope, &key) {
-                        resolved.clone()
+                    // Check if this looks like an external crate import before doing expensive searches
+                    if is_likely_external_import(&crate_named_import_path, scope, source) {
+                        // For external imports, don't do expensive searches - just use the import path as-is
+                        println!("[INFO] Import {} appears external, skipping expensive resolution", crate_named_import_path.to_token_stream());
+                        crate_named_import_path.clone()
                     } else {
-                        // Last fallback: Use the slower resolve_absolute_path for backward compatibility
-                        source.imports
-                            .resolve_absolute_path(&crate_named_import_path, scope)
-                            .unwrap_or_else(|| crate_named_import_path.clone())
+                        // Try the enhanced import resolver (checks parent scopes too)
+                        use crate::ext::GenericBoundKey;
+                        let key = GenericBoundKey::Path(crate_named_import_path.clone());
+                        if let Some(resolved) = source.imports.resolve_import_enhanced(scope, &key) {
+                            resolved.clone()
+                        } else {
+                            // Last fallback: Use the slower resolve_absolute_path for backward compatibility
+                            source.imports
+                                .resolve_absolute_path(&crate_named_import_path, scope)
+                                .unwrap_or_else(|| crate_named_import_path.clone())
+                        }
                     }
                 };
                 model.refine(&resolved_import_path);
@@ -515,6 +522,25 @@ fn resolve_import_with_scope_chain(scope: &ScopeChain, import_path: &Path, sourc
     }
 
     None
+}
+
+/// Check if an import path is likely from an external crate or non-exported item
+/// This helps avoid expensive searches for imports that won't be found in the scope resolver
+fn is_likely_external_import(import_path: &Path, current_scope: &ScopeChain, source: &GlobalContext) -> bool {
+    if import_path.segments.is_empty() {
+        return false;
+    }
+
+    let first_segment = &import_path.segments[0].ident.to_string();
+    let current_crate = current_scope.crate_ident_ref().to_string();
+
+    // If it's the current crate, it's not external
+    if first_segment == &current_crate {
+        return false;
+    }
+
+    // Check if the first segment is listed in external_crates config
+    source.config.external_crates.iter().any(|c| c.name.eq(first_segment))
 }
 
 pub fn refine_ty_with_import_path(ty: &mut Type, crate_named_import_path: &Path) {
