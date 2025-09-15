@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Formatter;
 use indexmap::IndexMap;
 use proc_macro2::Ident;
@@ -8,7 +8,7 @@ use crate::composable::{TraitModelPart1, TypeModel, TypeModeled};
 use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::{CustomResolver, GenericResolver, ImportResolver, ScopeChain, ScopeResolver, ScopeSearchKey, TraitsResolver, TypeChain};
 use crate::kind::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, MixinKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, TypeModelKind};
-use crate::ext::{AsType, GenericBoundKey, RefineInScope, Split, ToPath, ToType, CrateBased};
+use crate::ext::{AsType, GenericBoundKey, RefineInScope, Split, ToPath, ToType, CrateBased, RefineMut};
 use crate::formatter::format_global_context;
 
 #[derive(Clone)]
@@ -43,6 +43,29 @@ impl GlobalContext {
     pub fn with_config(config: Config) -> Self {
         Self { config, scope_register: ScopeResolver::default(), generics: Default::default(), traits: Default::default(), custom: Default::default(), imports: Default::default(), refined_mixins: IndexMap::default(), }
     }
+
+    pub fn refine(&mut self) {
+        // Refine import paths after scope creation but before type refinement
+        self.imports.refine_import_paths();
+        // Materialize glob imports before type refinement
+        self.imports.materialize_globs_with_scope_resolver(&self.scope_register);
+        // Collects scope items needed to refine
+        let mut scope_updates = vec![];
+        self.scope_register.inner.iter()
+            .for_each(|(scope, type_chain)| {
+                let scope_types_to_refine = type_chain.inner.iter()
+                    .filter_map(|(ty, object)|
+                        self.maybe_refined_object(scope, object)
+                            .map(|object_to_refine| (ty.to_owned(), object_to_refine)))
+                    .collect::<HashMap<_, _>>();
+                if !scope_types_to_refine.is_empty() {
+                    scope_updates.push((scope.to_owned(), scope_types_to_refine));
+                }
+            });
+        // Actual scope items refinement
+        self.refine_with(scope_updates);
+    }
+
     pub fn fermented_mod_name(&self) -> &str {
         &self.config.mod_name
     }

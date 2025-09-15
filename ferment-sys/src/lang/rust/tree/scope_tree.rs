@@ -11,7 +11,7 @@ use crate::tree::{create_item_use_with_tree, ScopeTree, ScopeTreeItem};
 impl SourceFermentable<RustFermentate> for ScopeTree {
     fn ferment(&self) -> RustFermentate {
         // Ferment children and drop empty results to avoid emitting empty modules.
-        let fermentate: Depunctuated<RustFermentate> = self
+        let fermentate: Vec<RustFermentate> = self
             .exported
             .values()
             .filter_map(|item| match item {
@@ -37,6 +37,6 @@ impl SourceFermentable<RustFermentate> for ScopeTree {
             .any(|f| !matches!(f, RustFermentate::Mod { .. }))
             .then(|| create_item_use_with_tree(UseTree::Rename(UseRename { ident: format_ident!("crate"), as_token: Default::default(), rename: ctx.config.current_crate.ident() })).punctuate_one());
 
-        RustFermentate::mod_with(self.attrs.cfg_attributes(), self.scope.crate_name(), imports, fermentate)
+        RustFermentate::mod_with(self.attrs.cfg_attributes(), self.scope.crate_name(), imports, Depunctuated::from_iter(fermentate))
     }
 }

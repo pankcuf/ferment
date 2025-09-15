@@ -1,8 +1,8 @@
 use quote::ToTokens;
 use syn::{Path, PathSegment, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypeSlice, TypeTraitObject};
 use crate::composable::{GenericBoundsModel, NestedArgument, TraitModel, TypeModel, TypeModeled};
-use crate::context::{GlobalContext, Scope, ScopeChain, ScopeInfo};
-use crate::ext::{find_best_ancestor, AsType, CrateBased, DictionaryType, Join, LifetimeProcessor, Pop, ReexportSeek, RefineMut, ToPath};
+use crate::context::{GlobalContext, ScopeChain};
+use crate::ext::{find_best_ancestor, AsType, CrateBased, DictionaryType, Join, LifetimeProcessor, ReexportSeek, RefineMut, ToPath};
 use crate::kind::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, TypeModelKind};
 
 pub trait RefineInScope {
@@ -28,25 +28,29 @@ impl RefineInScope for GenericBoundsModel {
 
 impl RefineInScope for Path {
     fn refine_in_scope(&mut self, scope: &ScopeChain, source: &GlobalContext) -> bool {
-        let crate_name = scope.crate_ident_as_path();
-        let mut refined = false;
-        let mut chunks = self.clone();
-        while !chunks.segments.is_empty() {
-            chunks.segments = chunks.segments.popped();
-            if !chunks.segments.is_empty() {
-                let mod_chain = create_mod_chain(&chunks);
-                if let Some(parent_imports) = source.imports.maybe_scope_imports(&mod_chain) {
-                    for alias_path in parent_imports.values() {
-                        let alias = alias_path.crate_named(&crate_name);
-                        if let Some(merged) = refined_import(self, &alias, source) {
-                            self.segments = merged.segments;
-                            refined = true;
-                        }
+        // Only try to resolve the first segment through imports - don't do partial path matching
+        if let Some(first_segment) = self.segments.first() {
+            use crate::ext::GenericBoundKey;
+            let key = GenericBoundKey::Ident(first_segment.ident.clone());
+
+            // Use the enhanced import resolver for exact first-segment matches
+            if let Some(resolved_path) = source.imports.resolve_import_enhanced(scope, &key) {
+                // If we have an exact match for the first segment, replace it
+                if resolved_path.segments.len() > 0 {
+                    let mut new_segments = resolved_path.segments.clone();
+                    // Add remaining segments from the original path (skip the first one)
+                    for segment in self.segments.iter().skip(1) {
+                        new_segments.push(segment.clone());
                     }
+                    self.segments = new_segments;
+                    return true;
                 }
             }
         }
-        refined
+
+        // If no import resolution worked, leave the path as-is
+        // Don't do the chunking approach as it leads to incorrect path construction
+        false
     }
 }
 
@@ -221,32 +225,6 @@ impl RefineInScope for NestedArgument {
     }
 }
 
-fn create_mod_chain(path: &Path) -> ScopeChain {
-    let segments = &path.segments;
-    let crate_ident = &segments.first().expect("Mod path should have at least one segment").ident;
-    let self_scope = Scope::empty(path.clone());
-    let parent_chunks = path.popped();
-    let parent = if parent_chunks.segments.len() > 1 {
-        create_mod_chain(&parent_chunks)
-    } else {
-        ScopeChain::root(ScopeInfo::attr_less(crate_ident, Scope::empty(parent_chunks)))
-    };
-    let info = ScopeInfo::attr_less(crate_ident, self_scope);
-    if segments.len() == 1 {
-        ScopeChain::root(info)
-    } else {
-        ScopeChain::r#mod(info, parent)
-    }
-}
-
-fn refined_import(import_path: &Path, alias: &Path, source: &GlobalContext) -> Option<Path> {
-    match (import_path.segments.last(), alias.segments.last()) {
-        (Some(PathSegment { ident, .. }), Some(PathSegment { ident: alias_ident, .. })) if ident == alias_ident =>
-            ReexportSeek::Absolute.maybe_reexport(import_path, source),
-        _ => None
-    }
-}
-
 // Unknown: There are 2 cases:
 // 1. it's from non-fermented crate
 // 2. it's not full scope:
@@ -330,6 +308,7 @@ fn determine_scope_item<'a>(new_ty_to_replace: &mut Type, ty_path: Path, scope: 
             // self -> neighbour mod
             let self_path = info.self_path();
             // Respect absolute paths: if `ty_path` starts with crate ident or `crate`, do not join.
+            // For other paths, rely on import resolution to determine if they should be absolute
             let is_absolute = ty_path.is_crate_based()
                 || ty_path.segments.first().map(|s| s.ident.eq(&info.crate_ident)).unwrap_or_default();
             let child_scope = if is_absolute { ty_path.clone() } else { self_path.joined(&ty_path) };
@@ -361,7 +340,9 @@ fn determine_scope_item<'a>(new_ty_to_replace: &mut Type, ty_path: Path, scope: 
             // check parent + local
 
             // Respect absolute paths: if `ty_path` starts with crate ident or `crate`, do not join.
-            let is_absolute = ty_path.is_crate_based() || ty_path.segments.first().map(|s| s.ident.eq(parent.crate_ident_ref())).unwrap_or_default();
+            // For other paths, rely on import resolution to determine if they should be absolute
+            let is_absolute = ty_path.is_crate_based()
+                || ty_path.segments.first().map(|s| s.ident.eq(parent.crate_ident_ref())).unwrap_or_default();
             let child_scope = if is_absolute { ty_path.clone() } else { parent_path.joined(&ty_path) };
             source.maybe_scope_item_ref_obj_first(&child_scope)
                 .inspect(|item| refine_ty_with_import_path(new_ty_to_replace, item.path()))
