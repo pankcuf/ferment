@@ -133,11 +133,11 @@ impl RefineInScope for TypeModelKind {
                     let scope_path = model.lifetimes_cleaned().pointer_less();
                     println!("[INFO] Import resolved as ({} ms): {}", std::time::SystemTime::now().duration_since(time).unwrap().as_millis(), resolved_import_path.to_token_stream());
                     // Try direct resolution, then descendMayant search under nearest existing ancestor, then absolute reexport.
-                    if let Some(found_item) = source.maybe_scope_item_ref_obj_first(&resolved_import_path)
-                        .or_else(|| find_best_ancestor(&resolved_import_path, source))
-                        .or_else(|| determine_scope_item(model.ty_mut(), scope_path, scope, source))
-                        // Try resolving via absolute reexport (handles glob reexports under modules)
-                        .or_else(|| ReexportSeek::Absolute.maybe_reexport(&resolved_import_path, source).and_then(|reexport| source.maybe_scope_item_ref_obj_first(&reexport))) {
+                    if let Some(found_item) = source.maybe_scope_item_ref_obj_first(&resolved_import_path) {
+                        // .or_else(|| find_best_ancestor(&resolved_import_path, source))
+                        // .or_else(|| determine_scope_item(model.ty_mut(), scope_path, scope, source))
+                        // // Try resolving via absolute reexport (handles glob reexports under modules)
+                        // .or_else(|| ReexportSeek::Absolute.maybe_reexport(&resolved_import_path, source).and_then(|reexport| source.maybe_scope_item_ref_obj_first(&reexport))) {
                         //println!("[INFO] (Import) Scope item found: {}", found_item);
                         // Build the full item path without duplicating the last segment.
                         // If the original type had generic arguments on the last segment,
@@ -156,12 +156,12 @@ impl RefineInScope for TypeModelKind {
                             *self = updated;
                         }
                         println!("[WARN] Import refined as ScopeItem ({} ms): {}", std::time::SystemTime::now().duration_since(time).unwrap().as_millis(), self.as_type().to_token_stream());
-                    } else if let Some(reexport) = ReexportSeek::Absolute.maybe_reexport(&resolved_import_path, source) {
-                        // As a last resort, if reexport path is found but not present as an item in the scope register
-                        // (e.g., via glob reexports), refine the model to that absolute path and treat it as an object.
-                        refine_ty_with_import_path(model.ty_mut(), &reexport);
-                        println!("[WARN] Import refined as External ({} ms): {}", std::time::SystemTime::now().duration_since(time).unwrap().as_millis(), reexport.to_token_stream());
-                        *self = TypeModelKind::Object(model);
+                    // } else if let Some(reexport) = ReexportSeek::Absolute.maybe_reexport(&resolved_import_path, source) {
+                    //     // As a last resort, if reexport path is found but not present as an item in the scope register
+                    //     // (e.g., via glob reexports), refine the model to that absolute path and treat it as an object.
+                    //     refine_ty_with_import_path(model.ty_mut(), &reexport);
+                    //     println!("[WARN] Import refined as External ({} ms): {}", std::time::SystemTime::now().duration_since(time).unwrap().as_millis(), reexport.to_token_stream());
+                    //     *self = TypeModelKind::Object(model);
                     } else {
                         println!("[WARN] Import Unknown ({} ms): {}",  std::time::SystemTime::now().duration_since(time).unwrap().as_millis(), model.as_type().to_token_stream());
                         *self = TypeModelKind::Unknown(model)
@@ -176,23 +176,23 @@ impl RefineInScope for TypeModelKind {
                     refine_nested_arguments(dictionary_type.type_model_mut(), scope, source);
                     *self = TypeModelKind::Dictionary(dictionary_type);
                     true
-                } else if let Some(found_item) = source.maybe_scope_item_ref_obj_first(&path)
-                    .or_else(|| determine_scope_item(model.ty_mut(), path.clone(), scope, source))
-                    // Try absolute reexport resolution for unknown paths as well
-                    .or_else(|| ReexportSeek::Absolute.maybe_reexport(&path, source)
-                        .and_then(|reexport| source.maybe_scope_item_ref_obj_first(&reexport))) {
-                    //println!("[INFO] (Unknown) Scope item found: {}", found_item);
-                    refine_ty_with_import_path(model.ty_mut(), found_item.path());
-                    if let Some(updated) = found_item.update_with(model.clone()) {
-                        //println!("[INFO] (Unknown) Scope item refined (Unknown): {}", updated);
-                        *self = updated;
-                    }
-                    true
-                } else if let Some(reexport) = ReexportSeek::Absolute.maybe_reexport(&path, source) {
-                    // If reexport path found but not tracked as a scope item (e.g., via glob), promote to Object
-                    refine_ty_with_import_path(model.ty_mut(), &reexport);
-                    *self = TypeModelKind::Object(model.clone());
-                    true
+                // } else if let Some(found_item) = source.maybe_scope_item_ref_obj_first(&path)
+                //     .or_else(|| determine_scope_item(model.ty_mut(), path.clone(), scope, source))
+                //     // Try absolute reexport resolution for unknown paths as well
+                //     .or_else(|| ReexportSeek::Absolute.maybe_reexport(&path, source)
+                //         .and_then(|reexport| source.maybe_scope_item_ref_obj_first(&reexport))) {
+                //     //println!("[INFO] (Unknown) Scope item found: {}", found_item);
+                //     refine_ty_with_import_path(model.ty_mut(), found_item.path());
+                //     if let Some(updated) = found_item.update_with(model.clone()) {
+                //         //println!("[INFO] (Unknown) Scope item refined (Unknown): {}", updated);
+                //         *self = updated;
+                //     }
+                //     true
+                // } else if let Some(reexport) = ReexportSeek::Absolute.maybe_reexport(&path, source) {
+                //     // If reexport path found but not tracked as a scope item (e.g., via glob), promote to Object
+                //     refine_ty_with_import_path(model.ty_mut(), &reexport);
+                //     *self = TypeModelKind::Object(model.clone());
+                //     true
                 } else {
                     println!("[WARN] (Unknown) Unknown import: {}", model.as_type().to_token_stream());
                     false
