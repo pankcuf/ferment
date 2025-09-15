@@ -8,12 +8,12 @@ use crate::ext::{Join, PathTransform, Pop, ToPath, CrateBased, CRATE, SELF, SUPE
 use crate::kind::ScopeItemKind;
 
 // Lightweight debug toggle for reexport resolution
-fn reexport_dbg_enabled() -> bool {
+fn dbg_enabled() -> bool {
     std::env::var("FERMENT_DEBUG_REEXPORT").is_ok()
 }
 macro_rules! reexport_dbg {
     ($($arg:tt)*) => {
-        if reexport_dbg_enabled() { println!($($arg)*); }
+        if dbg_enabled() { println!($($arg)*); }
     }
 }
 
@@ -921,7 +921,7 @@ pub fn find_best_ancestor<'a>(resolved_import_path: &Path, source: &'a GlobalCon
     }
 
     if let Some((_, ancestor_path, candidate)) = best_candidate {
-        println!("Found the best ancestor: {}", ancestor_path.to_token_stream());
+        reexport_dbg!("Found the best ancestor: {}", ancestor_path.to_token_stream());
         cache_ancestor_search(resolved_import_path, Some(candidate.clone()));
         source.maybe_scope_item_ref_obj_first(&candidate)
     } else {

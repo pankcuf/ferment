@@ -9,7 +9,7 @@ use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::{CustomResolver, GenericResolver, ImportResolver, ScopeChain, ScopeResolver, ScopeSearchKey, TraitsResolver, TypeChain};
 use crate::kind::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, MixinKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, TypeModelKind};
 use crate::ext::{AsType, GenericBoundKey, RefineInScope, Split, ToPath, ToType, CrateBased, RefineMut};
-use crate::formatter::format_global_context;
+use crate::formatter::{format_global_context, scope_resolved_imports_dict};
 
 #[derive(Clone)]
 pub struct GlobalContext {
@@ -46,9 +46,12 @@ impl GlobalContext {
 
     pub fn refine(&mut self) {
         // Refine import paths after scope creation but before type refinement
-        self.imports.refine_import_paths();
-        // Materialize glob imports before type refinement
-        self.imports.materialize_globs_with_scope_resolver(&self.scope_register);
+        self.imports.refine_imports(&self.scope_register);
+        // Build fully qualified resolved imports without circular dependencies
+        self.imports.build_fully_qualified_imports(&self.scope_register);
+        println!("################# REFINED IMPORTS ###############");
+        println!("{}", scope_resolved_imports_dict(&self.imports.resolved_imports).join("\n"));
+        println!("################# ############### ###############");
         // Collects scope items needed to refine
         let mut scope_updates = vec![];
         self.scope_register.inner.iter()
@@ -447,4 +450,5 @@ impl GlobalContext {
     fn maybe_object_ref_by_search_value(&self, search_key: ScopeSearchKey) -> Option<&ObjectKind> {
         self.scope_register.maybe_object_ref_by_value(search_key)
     }
+
 }

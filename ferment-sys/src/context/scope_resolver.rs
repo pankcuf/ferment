@@ -68,5 +68,10 @@ impl ScopeResolver {
         self.get(scope)
             .and_then(|chain| chain.get_by_path(path))
     }
+
+    /// Returns an iterator over all registered scopes
+    pub fn all_scopes(&self) -> impl Iterator<Item = &ScopeChain> {
+        self.inner.keys()
+    }
 }
 

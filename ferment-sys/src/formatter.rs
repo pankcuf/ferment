@@ -393,6 +393,184 @@ pub fn scope_imports_dict(dict: &IndexMap<ScopeChain, IndexMap<Path, Path>>) -> 
     format_scope_dict(dict, imports_dict)
 }
 
+pub fn scope_globs_dict(dict: &IndexMap<ScopeChain, Vec<Path>>) -> Vec<String> {
+    let mut iter = Vec::from_iter(dict.iter()
+        .filter_map(|(scope, glob_paths)|
+            (!glob_paths.is_empty())
+                .then(|| format!("\t{}:{}", scope.fmt_short(), Vec::from_iter(glob_paths.iter().map(|path| format!("\n\t\t\t{}::*", format_token_stream(path)))).join(",")))));
+    iter.sort();
+    iter
+}
+
+pub fn scope_materialized_globs_dict(dict: &IndexMap<ScopeChain, IndexMap<Path, Path>>) -> Vec<String> {
+    let mut iter = Vec::from_iter(dict.iter()
+        .filter_map(|(scope, materialized_map)|
+            (!materialized_map.is_empty())
+                .then(|| format!("\t{}:\n\t\t\t{}", scope.fmt_short(), Vec::from_iter(materialized_map.iter().map(|(alias, full_path)| format!("{} -> {}", format_token_stream(alias), format_token_stream(full_path)))).join("\n\t\t\t")))));
+    iter.sort();
+    iter
+}
+
+pub fn scope_resolved_imports_dict(dict: &HashMap<(ScopeChain, Path), Path>) -> Vec<String> {
+    // Group by scope for better organization
+    let mut scope_groups: HashMap<ScopeChain, Vec<(&Path, &Path)>> = HashMap::new();
+
+    for ((scope, import_path), resolved_path) in dict {
+        scope_groups.entry(scope.clone()).or_default().push((import_path, resolved_path));
+    }
+
+    let mut iter = Vec::from_iter(scope_groups.iter()
+        .filter_map(|(scope, import_mappings)| {
+            if import_mappings.is_empty() {
+                return None;
+            }
+
+            let mut sorted_mappings = import_mappings.clone();
+            sorted_mappings.sort_by_key(|(import_path, _)| format_token_stream(import_path));
+
+            let formatted_mappings = sorted_mappings.iter()
+                .map(|(import_path, resolved_path)| {
+                    format!("{} ⇒ {}", format_token_stream(import_path), format_token_stream(resolved_path))
+                })
+                .collect::<Vec<_>>()
+                .join("\n\t\t\t");
+
+            Some(format!("\t{}:\n\t\t\t{}", scope.fmt_short(), formatted_mappings))
+        }));
+
+    iter.sort();
+    iter
+}
+
+pub fn format_import_resolution_summary(context: &GlobalContext) -> Vec<String> {
+    let mut summary = vec![];
+
+    // Count statistics
+    let direct_imports_count: usize = context.imports.inner.values().map(|m| m.len()).sum();
+    let glob_imports_count: usize = context.imports.globs.values().map(|v| v.len()).sum();
+    let materialized_count: usize = context.imports.materialized_globs.values().map(|m| m.len()).sum();
+    let resolved_imports_count = context.imports.resolved_imports.len();
+
+    summary.push("Import Statistics:".to_string());
+    summary.push(format!("\t- Direct imports: {}", direct_imports_count));
+    summary.push(format!("\t- Glob patterns: {}", glob_imports_count));
+    summary.push(format!("\t- Materialized items: {}", materialized_count));
+    summary.push(format!("\t- Resolved imports: {}", resolved_imports_count));
+
+    // Show scopes with multiple import types
+    let scopes_with_multiple_types: Vec<_> = context.imports.inner.keys()
+        .filter(|&scope| {
+            let has_direct = context.imports.inner.get(scope).map_or(false, |m| !m.is_empty());
+            let has_globs = context.imports.globs.get(scope).map_or(false, |v| !v.is_empty());
+            let has_materialized = context.imports.materialized_globs.get(scope).map_or(false, |m| !m.is_empty());
+            [has_direct, has_globs, has_materialized].iter().filter(|&&x| x).count() > 1
+        })
+        .collect();
+
+    if !scopes_with_multiple_types.is_empty() {
+        summary.push(format!("Scopes with mixed import types: {}",
+            scopes_with_multiple_types.len()));
+    }
+
+    summary
+}
+
+pub fn format_glob_resolution_chains(context: &GlobalContext) -> Vec<String> {
+    let mut chains = vec![];
+
+    // Show detailed resolution chains for each scope with globs
+    for (scope, glob_bases) in &context.imports.globs {
+        if !glob_bases.is_empty() {
+            chains.push(format!("\t{}", scope.fmt_short()));
+
+            for glob_base in glob_bases {
+                chains.push(format!("\t\t└─ Glob: {}::*", format_token_stream(glob_base)));
+
+                // Show what was materialized from this glob
+                if let Some(materialized) = context.imports.materialized_globs.get(scope) {
+                    let from_this_glob: Vec<_> = materialized.iter()
+                        .filter(|(_, full_path)| {
+                            // Check if this materialized item could have come from this glob base
+                            full_path.segments.len() > glob_base.segments.len() &&
+                            full_path.segments.iter().take(glob_base.segments.len())
+                                .zip(glob_base.segments.iter())
+                                .all(|(a, b)| a.ident == b.ident)
+                        })
+                        .collect();
+
+                    if !from_this_glob.is_empty() {
+                        chains.push(format!("\t\t\t├─ Materialized: {} items", from_this_glob.len()));
+                        for (alias, full_path) in from_this_glob.iter().take(3) { // Show max 3 examples
+                            chains.push(format!("\t\t\t│  ├─ {} -> {}",
+                                format_token_stream(alias),
+                                format_token_stream(full_path)));
+                        }
+                        if from_this_glob.len() > 3 {
+                            chains.push(format!("\t\t\t│  └─ ... and {} more", from_this_glob.len() - 3));
+                        }
+                    } else {
+                        chains.push("\t\t\t└─ No materialized items".to_string());
+                    }
+                } else {
+                    chains.push("\t\t\t└─ No materialization found".to_string());
+                }
+            }
+            chains.push("".to_string()); // Empty line between scopes
+        }
+    }
+
+    chains
+}
+
+pub fn format_import_conflicts(context: &GlobalContext) -> Vec<String> {
+    let mut conflicts = vec![];
+
+    // Check for conflicts between direct imports and materialized globs
+    for (scope, direct_imports) in &context.imports.inner {
+        if let Some(materialized) = context.imports.materialized_globs.get(scope) {
+            for (direct_alias, direct_path) in direct_imports {
+                if let Some(glob_path) = materialized.get(direct_alias) {
+                    if direct_path != glob_path {
+                        conflicts.push(format!(
+                            "CONFLICT in scope {}: {} resolves to both {} (direct) and {} (glob)",
+                            scope.fmt_short(),
+                            format_token_stream(direct_alias),
+                            format_token_stream(direct_path),
+                            format_token_stream(glob_path)
+                        ));
+                    }
+                }
+            }
+        }
+    }
+
+    // Check for conflicts between multiple glob materializations (same name, different paths)
+    for (scope, materialized) in &context.imports.materialized_globs {
+        let mut name_to_paths = HashMap::<String, Vec<&Path>>::new();
+        for (alias, full_path) in materialized {
+            let alias_str = format_token_stream(alias);
+            name_to_paths.entry(alias_str).or_default().push(full_path);
+        }
+
+        for (alias_name, paths) in name_to_paths {
+            if paths.len() > 1 {
+                conflicts.push(format!(
+                    "AMBIGUOUS GLOB in scope {}: {} could resolve to: {}",
+                    scope.fmt_short(),
+                    alias_name,
+                    paths.iter().map(|p| format_token_stream(p)).collect::<Vec<_>>().join(", ")
+                ));
+            }
+        }
+    }
+
+    if !conflicts.is_empty() {
+        conflicts.insert(0, "Import Resolution Conflicts:".to_string());
+    }
+
+    conflicts
+}
+
 #[allow(unused)]
 pub fn scope_generics_dict(dict: &IndexMap<ScopeChain, IndexMap<Type, Vec<Path>>>) -> Vec<String> {
     format_scope_dict(dict, generic_bounds_dict)
@@ -449,11 +627,57 @@ pub fn format_global_context(context: &GlobalContext) -> String {
         sections.push(vec!["-- custom:".to_string(), custom_str]);
     }
 
-    // Imports: include only if non-empty
+    // Import Summary: always show if any imports exist
+    let has_any_imports = !context.imports.inner.is_empty() ||
+                         !context.imports.globs.is_empty() ||
+                         !context.imports.materialized_globs.is_empty();
+    if has_any_imports {
+        sections.push(vec!["-- import_summary:".to_string()]);
+        sections.push(format_import_resolution_summary(context));
+    }
+
+    // Direct Imports: include only if non-empty
     let imports = scope_imports_dict(&context.imports.inner);
     if !imports.is_empty() {
-        sections.push(vec!["-- imports:".to_string()]);
+        sections.push(vec!["-- kind:".to_string()]);
         sections.push(imports);
+    }
+
+    // Glob Imports: include only if non-empty
+    let globs = scope_globs_dict(&context.imports.globs);
+    if !globs.is_empty() {
+        sections.push(vec!["-- glob_imports:".to_string()]);
+        sections.push(globs);
+    }
+
+    // Materialized Globs: include only if non-empty
+    let materialized_globs = scope_materialized_globs_dict(&context.imports.materialized_globs);
+    if !materialized_globs.is_empty() {
+        sections.push(vec!["-- materialized_globs:".to_string()]);
+        sections.push(materialized_globs);
+    }
+
+    // Resolved Imports: include only if non-empty
+    let resolved_imports = scope_resolved_imports_dict(&context.imports.resolved_imports);
+    if !resolved_imports.is_empty() {
+        sections.push(vec!["-- resolved_imports:".to_string()]);
+        sections.push(resolved_imports);
+    }
+
+    // Import Conflicts: always show if any exist
+    let conflicts = format_import_conflicts(context);
+    if !conflicts.is_empty() {
+        sections.push(vec!["-- import_conflicts:".to_string()]);
+        sections.push(conflicts);
+    }
+
+    // Detailed Glob Resolution Chains: only if debug environment variable is set
+    if std::env::var("FERMENT_DEBUG_IMPORTS").is_ok() {
+        let resolution_chains = format_glob_resolution_chains(context);
+        if !resolution_chains.is_empty() {
+            sections.push(vec!["-- glob_resolution_chains:".to_string()]);
+            sections.push(resolution_chains);
+        }
     }
 
     // Generics: include only if non-empty (and per-scope filtered above)

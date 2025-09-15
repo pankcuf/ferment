@@ -250,10 +250,20 @@ impl Visitor {
             },
             (_, Ok(_)) => if ident.eq(&Some(&format_ident!("FFIConversionFrom"))) || ident.eq(&Some(&format_ident!("FFIConversionTo"))) || ident.eq(&Some(&format_ident!("FFIConversionDestroy"))) {
                 if let Item::Impl(..) = item {
-                    if let Some(_scope) = item.join_scope(&current_scope, self) {}
+                    if let Some(_scope) = item.join_scope(&current_scope, self) {
+                        // self.find_scope_tree(&self_scope)
+                        //     .add_item(item, scope);
+                    }
                 }
-            },
-            _ => {}
+            } /*else if let Item::Impl(..) = item {
+                if let Some(scope) = item.join_scope(&current_scope, self) {
+                    self.find_scope_tree(&self_scope)
+                        .add_item(item, scope);
+                }
+            }*/,
+
+            _ => {
+            }
         }
     }
 }

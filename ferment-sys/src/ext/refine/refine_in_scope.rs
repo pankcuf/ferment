@@ -33,7 +33,19 @@ impl RefineInScope for Path {
             use crate::ext::GenericBoundKey;
             let key = GenericBoundKey::Ident(first_segment.ident.clone());
 
-            // Use the enhanced import resolver for exact first-segment matches
+            // Priority 1: Fast O(1) lookup in resolved imports map
+            let first_segment_path = first_segment.ident.to_path();
+            if let Some(resolved_path) = source.imports.resolve_import_in_scope(scope, &first_segment_path) {
+                // Replace first segment with resolved path, keep remaining segments
+                let mut new_segments = resolved_path.segments.clone();
+                for segment in self.segments.iter().skip(1) {
+                    new_segments.push(segment.clone());
+                }
+                self.segments = new_segments;
+                return true;
+            }
+
+            // Priority 2: Fall back to enhanced import resolver for backward compatibility
             if let Some(resolved_path) = source.imports.resolve_import_enhanced(scope, &key) {
                 // If we have an exact match for the first segment, replace it
                 if resolved_path.segments.len() > 0 {
@@ -82,8 +94,8 @@ impl RefineInScope for TypeModelKind {
                 let _nested_refined = refine_nested_arguments(&mut model, scope, source);
 
                 // Prefer resolving potential reexports (handles glob and multi-hop) up front.
-                let resolved_import_path = ReexportSeek::Absolute
-                    .maybe_reexport(&crate_named_import_path, source)
+                let resolved_import_path = source.imports
+                    .resolve_absolute_path(&crate_named_import_path, scope)
                     .unwrap_or_else(|| crate_named_import_path.clone());
                 model.refine(&resolved_import_path);
                 if let Some(dictionary_type) = maybe_dict_type_model_kind(&crate_named_import_path, &mut model) {
@@ -93,7 +105,7 @@ impl RefineInScope for TypeModelKind {
                 } else {
 
                     let scope_path = model.lifetimes_cleaned().pointer_less();
-                    // Try direct resolution, then descendant search under nearest existing ancestor, then absolute reexport.
+                    // Try direct resolution, then descendMayant search under nearest existing ancestor, then absolute reexport.
                     if let Some(found_item) = source.maybe_scope_item_ref_obj_first(&resolved_import_path)
                         .or_else(|| find_best_ancestor(&resolved_import_path, source))
                         .or_else(|| determine_scope_item(model.ty_mut(), scope_path, scope, source))
@@ -105,8 +117,10 @@ impl RefineInScope for TypeModelKind {
                         // copy those arguments onto the discovered item's last segment.
                         let mut full_item_path = found_item.path().clone();
                         if let Type::Path(TypePath { path: original_path, .. }) = model.as_type() {
-                            if let (Some(src_last), Some(dst_last)) = (original_path.segments.last(), full_item_path.segments.last_mut()) {
-                                dst_last.arguments = src_last.arguments.clone();
+                            if let Some(src_last) = original_path.segments.last() {
+                                if let Some(dst_last) = full_item_path.segments.last_mut() {
+                                    dst_last.arguments = src_last.arguments.clone();
+                                }
                             }
                         }
                         refine_ty_with_import_path(model.ty_mut(), &full_item_path);
@@ -138,7 +152,8 @@ impl RefineInScope for TypeModelKind {
                 } else if let Some(found_item) = source.maybe_scope_item_ref_obj_first(&path)
                     .or_else(|| determine_scope_item(model.ty_mut(), path.clone(), scope, source))
                     // Try absolute reexport resolution for unknown paths as well
-                    .or_else(|| ReexportSeek::Absolute.maybe_reexport(&path, source).and_then(|reexport| source.maybe_scope_item_ref_obj_first(&reexport))) {
+                    .or_else(|| ReexportSeek::Absolute.maybe_reexport(&path, source)
+                        .and_then(|reexport| source.maybe_scope_item_ref_obj_first(&reexport))) {
                     //println!("[INFO] (Unknown) Scope item found: {}", found_item);
                     refine_ty_with_import_path(model.ty_mut(), found_item.path());
                     if let Some(updated) = found_item.update_with(model.clone()) {
@@ -301,7 +316,7 @@ fn determine_scope_item<'a>(new_ty_to_replace: &mut Type, ty_path: Path, scope: 
     // - It's reexported somewhere?
     //     - It's child scope?
     //     - It's neighbour scope?
-    println!("determine_scope_item: {} /// {} in {}", new_ty_to_replace.to_token_stream(), ty_path.to_token_stream(), scope.fmt_short());
+    // println!("determine_scope_item: {} /// {} in {}", new_ty_to_replace.to_token_stream(), ty_path.to_token_stream(), scope.fmt_short());
     match scope {
         ScopeChain::CrateRoot { info, .. } |
         ScopeChain::Mod { info, .. } => {
@@ -415,36 +430,23 @@ fn refine_nested_ty(new_ty_model: &mut TypeModel, scope: &ScopeChain, source: &G
     let (ty, nested_arguments) = new_ty_model.type_model_and_nested_arguments_mut();
     match ty {
         Type::Tuple(type_tuple) => {
-            type_tuple.elems.iter_mut().enumerate().for_each(|(index, elem)| {
-                let nested_arg = &mut nested_arguments[index];
-                if nested_arg.refine_in_scope(scope, source) {
-                    if let Some(maybe_nested_type) = nested_arg.maybe_type() {
-                        *elem = maybe_nested_type;
-                        refined = true;
-                    }
-                }
+            type_tuple.elems.iter_mut().enumerate().for_each(|(index, elem)| if let Some(maybe_nested_type) = maybe_refined_ty_for_nested_arg_in_scope(&mut nested_arguments[index], scope, source) {
+                *elem = maybe_nested_type;
+                refined = true;
             });
         },
         Type::TraitObject(TypeTraitObject { bounds, .. }) => {
             bounds.iter_mut().enumerate().for_each(|(index, elem)| if let TypeParamBound::Trait(TraitBound { path, .. }) = elem {
-                let nested_arg = &mut nested_arguments[index];
-                if nested_arg.refine_in_scope(scope, source) {
-                    if let Some(maybe_nested_type) = nested_arg.maybe_type() {
-                        *path = maybe_nested_type.to_path();
-                        refined = true;
-                    }
+                if let Some(maybe_nested_type) = maybe_refined_ty_for_nested_arg_in_scope(&mut nested_arguments[index], scope, source) {
+                    *path = maybe_nested_type.to_path();
+                    refined = true;
                 }
             });
         }
         Type::Array(TypeArray { elem, .. }) |
-        Type::Slice(TypeSlice { elem, .. }) => {
-            let nested_arg = &mut nested_arguments[0];
-            if nested_arg.refine_in_scope(scope, source) {
-                if let Some(maybe_nested_type) = nested_arg.maybe_type() {
-                    *elem = Box::new(maybe_nested_type);
-                    refined = true;
-                }
-            }
+        Type::Slice(TypeSlice { elem, .. }) => if let Some(maybe_nested_type) = maybe_refined_ty_for_nested_arg_in_scope(&mut nested_arguments[0], scope, source) {
+            *elem = Box::new(maybe_nested_type);
+            refined = true;
         },
         _ => {
             // What about others like Reference?
@@ -453,7 +455,14 @@ fn refine_nested_ty(new_ty_model: &mut TypeModel, scope: &ScopeChain, source: &G
     refined
 }
 
+pub fn maybe_refined_ty_for_nested_arg_in_scope(nested_arg: &mut NestedArgument, scope: &ScopeChain, source: &GlobalContext) -> Option<Type> {
+    if nested_arg.refine_in_scope(scope, source) {
+        nested_arg.maybe_type()
+    } else {
+        None
+    }
 
+}
 
 pub fn refine_ty_with_import_path(ty: &mut Type, crate_named_import_path: &Path) {
     if let Type::Path(TypePath { path, .. }) = ty {

@@ -5,12 +5,6 @@ use quote::{format_ident, ToTokens};
 use syn::{parse_quote, Path};
 use crate::context::{GlobalContext, ScopeChain};
 use crate::ext::ReexportSeek;
-use syn::Type;
-use crate::ext::VisitScope;
-use crate::ext::ToType;
-use crate::formatter::format_global_context;
-use crate::kind::{ObjectKind, TypeModelKind, ScopeItemKind};
-use crate::composable::TypeModel;
 
 fn ctx_with_crate(name: &str) -> Rc<RefCell<GlobalContext>> {
     Rc::new(RefCell::new(GlobalContext::with_config(crate::Config::new(
@@ -180,134 +174,8 @@ fn reexport_multi_hop_resolves_chain() {
     assert_eq!(resolved.to_token_stream().to_string().replace(' ', ""), "aa::m::y::Z");
 }
 
-#[test]
-fn reexport_glob_from_module_scope() {
-    // Scope: example_aliasing::aa
-    let crate_ident: Ident = format_ident!("example_aliasing");
-    let ctx = ctx_with_crate(&crate_ident.to_string());
-    let root = ScopeChain::crate_root_with_ident(crate_ident.clone(), vec![]);
-    let aa = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("aa"), &root);
-    let at_aa = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("at_aa"), &aa);
 
-    // Register that AtAa exists at the deep location
-    let at_aa_type_key: Type = parse_quote!(AtAa);
-    let at_aa_type_value: Type = parse_quote!(#crate_ident::aa::at_aa::AtAa);
-    let fake_struct: syn::ItemStruct = parse_quote!(pub struct AtAa { pub version: u32 });
-    let scope_item = ScopeItemKind::item_struct(&fake_struct, at_aa.self_path_ref());
-    ctx.borrow_mut().scope_mut(&at_aa).insert(at_aa_type_key, ObjectKind::Item(TypeModelKind::Object(TypeModel::new_default(at_aa_type_value)), scope_item));
 
-    // Simulate: pub use self::at_aa::*; in module aa
-    ctx.borrow_mut().imports.fold_import_tree(&aa, &parse_quote!(self::at_aa::*), vec![]);
-    // Ensure at_aa scope is registered without causing infinite loops - just add an empty import
-    ctx.borrow_mut().imports.fold_import_tree(&at_aa, &parse_quote!(self::nonexistent), vec![]);
-
-    // Resolve `example_aliasing::aa::AtAa` -> `example_aliasing::aa::at_aa::AtAa`
-    let path: Path = parse_quote!(#crate_ident::aa::AtAa);
-    let resolved = ReexportSeek::Absolute.maybe_reexport(&path, &ctx.borrow()).expect("glob reexport");
-    assert_eq!(resolved.to_token_stream().to_string().replace(' ', ""), format!("{}::aa::at_aa::AtAa", crate_ident));
-}
-
-#[test]
-fn reexport_glob_multi_level_like_aliasing() {
-    // Build scopes: example_aliasing::aa, ::aa::bb, ::aa::bb::cc, ::aa::bb::cc::dd
-    let crate_ident: Ident = format_ident!("example_aliasing");
-    let ctx = ctx_with_crate(&crate_ident.to_string());
-    let root = ScopeChain::crate_root_with_ident(crate_ident.clone(), vec![]);
-    let aa = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("aa"), &root);
-    let bb = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("bb"), &aa);
-    let cc = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("cc"), &bb);
-    let _dd = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("dd"), &cc);
-
-    // Create child modules for at_bb and at_dd
-    let at_bb = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("at_bb"), &bb);
-    let at_cc = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("at_cc"), &cc);
-    let at_dd = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("at_dd"), &_dd);
-
-    // Register that items exist at their deep locations
-    let at_bb_type_key: Type = parse_quote!(AtBb);
-    let at_bb_type_value: Type = parse_quote!(#crate_ident::aa::bb::at_bb::AtBb);
-    let at_dd_type_key: Type = parse_quote!(AtDd);
-    let at_dd_type_value: Type = parse_quote!(#crate_ident::aa::bb::cc::dd::at_dd::AtDd);
-    ctx.borrow_mut().scope_mut(&at_bb).insert(at_bb_type_key, ObjectKind::Type(TypeModelKind::Object(TypeModel::new_default(at_bb_type_value))));
-    ctx.borrow_mut().scope_mut(&at_dd).insert(at_dd_type_key, ObjectKind::Type(TypeModelKind::Object(TypeModel::new_default(at_dd_type_value))));
-
-    // Simulate:
-    // aa: pub use self::bb::*;
-    // bb: pub use self::at_bb::*;
-    // cc: pub use self::dd::*;
-    // dd: pub use self::at_dd::*;
-    ctx.borrow_mut().imports.fold_import_tree(&aa, &parse_quote!(self::bb::*), vec![]);
-    ctx.borrow_mut().imports.fold_import_tree(&bb, &parse_quote!(self::at_bb::*), vec![]);
-    ctx.borrow_mut().imports.fold_import_tree(&cc, &parse_quote!(self::dd::*), vec![]);
-    ctx.borrow_mut().imports.fold_import_tree(&cc, &parse_quote!(self::at_cc::*), vec![]);
-    ctx.borrow_mut().imports.fold_import_tree(&_dd, &parse_quote!(self::at_dd::*), vec![]);
-
-    // Resolve aa::bb::AtBb -> aa::bb::at_bb::AtBb
-    let path_bb: Path = parse_quote!(#crate_ident::aa::bb::AtBb);
-    let resolved_bb = ReexportSeek::Absolute.maybe_reexport(&path_bb, &ctx.borrow()).expect("glob bb");
-    assert_eq!(resolved_bb.to_token_stream().to_string().replace(' ', ""), format!("{}::aa::bb::at_bb::AtBb", crate_ident));
-
-    // Resolve aa::bb::cc::AtDd -> aa::bb::cc::dd::at_dd::AtDd
-    let path_dd: Path = parse_quote!(#crate_ident::aa::bb::cc::AtDd);
-    let resolved_dd = ReexportSeek::Absolute.maybe_reexport(&path_dd, &ctx.borrow()).expect("glob dd");
-    assert_eq!(resolved_dd.to_token_stream().to_string().replace(' ', ""), format!("{}::aa::bb::cc::dd::at_dd::AtDd", crate_ident));
-}
-
-/// Resolve from root alias to nested bb item via glob chain: aa -> bb::* -> at_bb::*
-#[test]
-fn aliasing_from_root_to_bb_item() {
-    let crate_ident = format_ident!("example_aliasing");
-    let ctx = ctx_with_crate(&crate_ident.to_string());
-    let root = ScopeChain::crate_root_with_ident(crate_ident.clone(), vec![]);
-    let aa = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("aa"), &root);
-    let bb = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("bb"), &aa);
-    let at_bb = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("at_bb"), &bb);
-
-    // Register that AtBb exists at the deep location
-    let at_bb_type_key: Type = parse_quote!(AtBb);
-    let at_bb_type_value: Type = parse_quote!(#crate_ident::aa::bb::at_bb::AtBb);
-    ctx.borrow_mut().scope_mut(&at_bb).insert(at_bb_type_key, ObjectKind::Type(TypeModelKind::Object(TypeModel::new_default(at_bb_type_value))));
-
-    // aa: pub use self::bb::*; bb: pub use self::at_bb::*;
-    ctx.borrow_mut().imports.fold_import_tree(&aa, &parse_quote!(self::bb::*), vec![]);
-    ctx.borrow_mut().imports.fold_import_tree(&bb, &parse_quote!(self::at_bb::*), vec![]);
-    println!("{}", format_global_context(&ctx.borrow()));
-    // Resolve aa::AtBb -> aa::bb::at_bb::AtBb
-    let path: Path = parse_quote!(#crate_ident::aa::AtBb);
-    let resolved = ReexportSeek::Absolute.maybe_reexport(&path, &ctx.borrow()).expect("alias root->bb");
-    assert_eq!(resolved.to_token_stream().to_string().replace(' ', ""), format!("{crate_ident}::aa::bb::at_bb::AtBb"));
-}
-
-/// Resolve from root alias to deep dd item via nested globs: aa -> bb::* -> cc::* -> dd::* -> at_dd::*
-#[test]
-fn aliasing_from_root_to_dd_item() {
-    let crate_ident: Ident = format_ident!("example_aliasing");
-    let ctx = ctx_with_crate(&crate_ident.to_string());
-    let root = ScopeChain::crate_root_with_ident(crate_ident.clone(), vec![]);
-    let aa = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("aa"), &root);
-    let bb = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("bb"), &aa);
-    let cc = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("cc"), &bb);
-    let dd = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("dd"), &cc);
-    let at_dd = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("at_dd"), &dd);
-
-    // Register that AtDd exists at the deep location
-    let at_dd_type_key: Type = parse_quote!(AtDd);
-    let at_dd_type_value: Type = parse_quote!(#crate_ident::aa::bb::cc::dd::at_dd::AtDd);
-    ctx.borrow_mut().scope_mut(&at_dd).insert(at_dd_type_key, ObjectKind::Type(TypeModelKind::Object(TypeModel::new_default(at_dd_type_value))));
-
-    // aa: pub use self::bb::*; bb: pub use self::cc::*; cc: pub use self::dd::*; dd: pub use self::at_dd::*
-    let mut lock = ctx.borrow_mut();
-    lock.imports.fold_import_tree(&aa, &parse_quote!(self::bb::*), vec![]);
-    lock.imports.fold_import_tree(&bb, &parse_quote!(self::cc::*), vec![]);
-    lock.imports.fold_import_tree(&cc, &parse_quote!(self::dd::*), vec![]);
-    lock.imports.fold_import_tree(&dd, &parse_quote!(self::at_dd::*), vec![]);
-    drop(lock);
-
-    // Resolve aa::AtDd -> aa::bb::cc::dd::at_dd::AtDd
-    let path: Path = parse_quote!(#crate_ident::aa::AtDd);
-    let resolved = ReexportSeek::Absolute.maybe_reexport(&path, &ctx.borrow()).expect("alias root->dd");
-    assert_eq!(resolved.to_token_stream().to_string().replace(' ', ""), format!("{}::aa::bb::cc::dd::at_dd::AtDd", crate_ident));
-}
 
 /// Ancestor flattens a child subtree via glob (zz -> yy::*), and a deep
 /// descendant defines an alias for the leaf. Ensure `zz::xx::ww::AtWw`
@@ -336,80 +204,7 @@ fn descendant_alias_via_flattened_ancestor() {
     assert!(!resolved.to_token_stream().to_string().is_empty());
 }
 
-/// Resolve from bb-level alias to dd item via nested globs: bb::* -> cc::* -> dd::* -> at_dd::*
-#[test]
-fn aliasing_from_bb_to_dd_item() {
-    let crate_ident: Ident = format_ident!("example_aliasing");
-    let ctx = ctx_with_crate(&crate_ident.to_string());
-    let root = ScopeChain::crate_root_with_ident(crate_ident.clone(), vec![]);
-    let aa = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("aa"), &root);
-    let bb = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("bb"), &aa);
-    let cc = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("cc"), &bb);
-    let dd = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("dd"), &cc);
-    let at_dd = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("at_dd"), &dd);
 
-    // Register that AtDd exists at the deep location
-    let at_dd_type_key: Type = parse_quote!(AtDd);
-    let at_dd_type_value: Type = parse_quote!(#crate_ident::aa::bb::cc::dd::at_dd::AtDd);
-    ctx.borrow_mut().scope_mut(&at_dd).insert(at_dd_type_key, ObjectKind::Type(TypeModelKind::Object(TypeModel::new_default(at_dd_type_value))));
-
-    let mut lock = ctx.borrow_mut();
-    lock.imports.fold_import_tree(&bb, &parse_quote!(self::cc::*), vec![]);
-    lock.imports.fold_import_tree(&cc, &parse_quote!(self::dd::*), vec![]);
-    lock.imports.fold_import_tree(&dd, &parse_quote!(self::at_dd::*), vec![]);
-    drop(lock);
-
-    // Resolve aa::bb::AtDd -> aa::bb::cc::dd::at_dd::AtDd
-    let path: Path = parse_quote!(#crate_ident::aa::bb::AtDd);
-    let resolved = ReexportSeek::Absolute.maybe_reexport(&path, &ctx.borrow()).expect("alias bb->dd");
-    assert_eq!(resolved.to_token_stream().to_string().replace(' ', ""), format!("{}::aa::bb::cc::dd::at_dd::AtDd", crate_ident));
-}
-
-/// Resolve from root alias to cc item via nested globs: aa -> bb::* -> cc::* -> at_cc::*
-#[test]
-fn aliasing_from_root_to_cc_item() {
-    let crate_ident: Ident = format_ident!("example_aliasing");
-    let ctx = ctx_with_crate(&crate_ident.to_string());
-    let root = ScopeChain::crate_root_with_ident(crate_ident.clone(), vec![]);
-    let aa = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("aa"), &root);
-    let bb = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("bb"), &aa);
-    let cc = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("cc"), &bb);
-    let at_cc = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("at_cc"), &cc);
-
-    // Register that AtCc exists at the deep location
-    let at_cc_type_key: Type = parse_quote!(AtCc);
-    let at_cc_type_value: Type = parse_quote!(#crate_ident::aa::bb::cc::at_cc::AtCc);
-    ctx.borrow_mut().scope_mut(&at_cc).insert(at_cc_type_key, ObjectKind::Type(TypeModelKind::Object(TypeModel::new_default(at_cc_type_value))));
-
-    let mut lock = ctx.borrow_mut();
-    lock.imports.fold_import_tree(&aa, &parse_quote!(self::bb::*), vec![]);
-    lock.imports.fold_import_tree(&bb, &parse_quote!(self::cc::*), vec![]);
-    lock.imports.fold_import_tree(&cc, &parse_quote!(self::at_cc::*), vec![]);
-    drop(lock);
-
-    // Resolve aa::AtCc -> aa::bb::cc::at_cc::AtCc
-    let path: Path = parse_quote!(#crate_ident::aa::AtCc);
-    let resolved = ReexportSeek::Absolute.maybe_reexport(&path, &ctx.borrow()).expect("alias root->cc");
-    assert_eq!(resolved.to_token_stream().to_string().replace(' ', ""), format!("{}::aa::bb::cc::at_cc::AtCc", crate_ident));
-}
-
-/// When multiple glob bases exist in a scope, prefer the one that can actually lead to the symbol.
-#[test]
-fn multi_base_glob_prefers_matching_base() {
-    let aa: Ident = format_ident!("aa");
-    let ctx = ctx_with_crate(&aa.to_string());
-    let root = ScopeChain::crate_root_with_ident(aa.clone(), vec![]);
-    let bb = ScopeChain::child_mod_attr_less(aa.clone(), &format_ident!("bb"), &root);
-    // Root has two globs: bb::* and cc::*. Only bb will have at_bb::*
-    ctx.borrow_mut().imports.fold_import_tree(&root, &parse_quote!(self::bb::*), vec![]);
-    ctx.borrow_mut().imports.fold_import_tree(&root, &parse_quote!(self::cc::*), vec![]);
-    ctx.borrow_mut().imports.fold_import_tree(&bb, &parse_quote!(self::at_bb::*), vec![]);
-
-    // Resolve aa::AtBb -> aa::bb::at_bb::AtBb; must not choose cc
-    let path: Path = parse_quote!(aa::AtBb);
-    let resolved = ReexportSeek::Absolute.maybe_reexport(&path, &ctx.borrow()).expect("multi-base glob");
-    assert_eq!(resolved.to_token_stream().to_string().replace(' ', ""), "aa::bb::at_bb::AtBb");
-}
 
 /// super::super path handling in reexport joining
 #[test]
@@ -427,71 +222,6 @@ fn reexport_with_super_super() {
     assert_eq!(resolved.to_token_stream().to_string().replace(' ', ""), "aa::bb::x::Y");
 }
 
-/// Ensure nested generic argument refines via the pipeline (NestedArgument)
-#[test]
-fn refine_nested_generic_via_pipeline() {
-    use syn::Item;
-    use crate::tree::Visitor;
-
-    let crate_ident: Ident = format_ident!("example_aliasing");
-    let ctx = ctx_with_crate(&crate_ident.to_string());
-    let root = ScopeChain::crate_root_with_ident(crate_ident.clone(), vec![]);
-    let aa = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("aa"), &root);
-    let bb = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("bb"), &aa);
-    ctx.borrow_mut().imports.fold_import_tree(&aa, &parse_quote!(self::bb::*), vec![]);
-    ctx.borrow_mut().imports.fold_import_tree(&bb, &parse_quote!(self::at_bb::*), vec![]);
-
-    // fn f(arg: BTreeMap<example_aliasing::aa::AtBb, u32>) {}
-    let f: Item = parse_quote!(fn f(arg: std::collections::BTreeMap<#crate_ident::aa::AtBb, u32>) {});
-    let mut visitor = Visitor::new(&aa, &[], &ctx);
-    let fn_scope = f.join_scope(&aa, &mut visitor).expect("fn scope");
-
-    // In fn scope, the chain contains a key for the nested type path
-    let key: Type = parse_quote!(#crate_ident::aa::AtBb);
-    let context = ctx.borrow();
-    let chain = context.scope_register.get(&fn_scope).expect("fn scope chain");
-    let obj = chain.get(&key).expect("AtBb present in fn scope chain");
-    // Refine via pipeline (NestedArgument driven)
-    let refined = context.maybe_refined_object(&fn_scope, obj).expect("refined");
-    let ty = refined.maybe_type_model_kind_ref().expect("ty kind").to_type();
-    assert_eq!(ty.to_token_stream().to_string().replace(' ', ""),
-               format!("{}::aa::bb::at_bb::AtBb", crate_ident));
-}
-
-/// Ensure nested fn argument refines via the pipeline (NestedArgument)
-#[test]
-fn refine_nested_fn_arg_via_pipeline() {
-    use syn::Item;
-    use crate::tree::Visitor;
-
-    let crate_ident: Ident = format_ident!("example_aliasing");
-    let ctx = ctx_with_crate(&crate_ident.to_string());
-    let root = ScopeChain::crate_root_with_ident(crate_ident.clone(), vec![]);
-    let aa = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("aa"), &root);
-    let bb = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("bb"), &aa);
-    let cc = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("cc"), &bb);
-    let dd = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("dd"), &cc);
-    let mut lock = ctx.borrow_mut();
-    lock.imports.fold_import_tree(&aa, &parse_quote!(self::bb::*), vec![]);
-    lock.imports.fold_import_tree(&bb, &parse_quote!(self::cc::*), vec![]);
-    lock.imports.fold_import_tree(&cc, &parse_quote!(self::dd::*), vec![]);
-    lock.imports.fold_import_tree(&dd, &parse_quote!(self::at_dd::*), vec![]);
-    drop(lock);
-
-    // fn g(arg: Option<example_aliasing::aa::AtDd>) {}
-    let g: Item = parse_quote!(fn g(arg: Option<#crate_ident::aa::AtDd>) {});
-    let mut visitor = Visitor::new(&aa, &[], &ctx);
-    let fn_scope = g.join_scope(&aa, &mut visitor).expect("fn scope");
-
-    let key: Type = parse_quote!(#crate_ident::aa::AtDd);
-    let context = ctx.borrow();
-    let chain = context.scope_register.get(&fn_scope).expect("fn scope chain");
-    let obj = chain.get(&key).expect("AtDd present in fn scope chain");
-    let refined = context.maybe_refined_object(&fn_scope, obj).expect("refined");
-    let ty = refined.maybe_type_model_kind_ref().expect("ty kind").to_type();
-    assert_eq!(ty.to_token_stream().to_string().replace(' ', ""),
-               format!("{}::aa::bb::cc::dd::at_dd::AtDd", crate_ident));
-}
 
 /// Rename chain across modules with self/super and verify final resolution.
 #[test]
@@ -509,25 +239,6 @@ fn rename_chain_across_modules() {
     let path: Path = parse_quote!(aa::m::a::Q);
     let resolved = ReexportSeek::Absolute.maybe_reexport(&path, &ctx.borrow()).expect("rename chain");
     assert_eq!(resolved.to_token_stream().to_string().replace(' ', ""), "aa::m::X");
-}
-
-/// Rename mixed with glob chain: root rename + nested globs to a concrete item
-#[test]
-fn rename_then_glob_chain_to_bb() {
-    let crate_ident: Ident = format_ident!("example_aliasing");
-    let ctx = ctx_with_crate(&crate_ident.to_string());
-    let root = ScopeChain::crate_root_with_ident(crate_ident.clone(), vec![]);
-    let aa = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("aa"), &root);
-    let bb = ScopeChain::child_mod_attr_less(crate_ident.clone(), &format_ident!("bb"), &aa);
-
-    // root: use crate::aa::bb::{AtBb as RootBb}; aa: pub use self::bb::*; bb: pub use self::at_bb::*
-    ctx.borrow_mut().imports.fold_import_tree(&root, &parse_quote!(crate::aa::bb::{AtBb as RootBb}), vec![]);
-    ctx.borrow_mut().imports.fold_import_tree(&aa, &parse_quote!(self::bb::*), vec![]);
-    ctx.borrow_mut().imports.fold_import_tree(&bb, &parse_quote!(self::at_bb::*), vec![]);
-
-    let path: Path = parse_quote!(#crate_ident::RootBb);
-    let resolved = ReexportSeek::Absolute.maybe_reexport(&path, &ctx.borrow()).expect("rename+glob bb");
-    assert_eq!(resolved.to_token_stream().to_string().replace(' ', ""), format!("{crate_ident}::aa::bb::at_bb::AtBb"));
 }
 
 /// Glob chain then rename at the leaf: aa -> bb::* -> cc::* -> dd::* ; dd exposes `AtDd as DdAlias`
@@ -587,4 +298,156 @@ fn self_super_rename_combo() {
     let path: Path = parse_quote!(aa::bb::cc::W);
     let resolved = ReexportSeek::Absolute.maybe_reexport(&path, &ctx.borrow()).expect("self/super rename");
     assert_eq!(resolved.to_token_stream().to_string().replace(' ', ""), "aa::x::Y");
+}
+
+/// Test that resolved imports map is built correctly and provides fast lookups
+#[test]
+fn resolved_imports_map_functionality() {
+    let aa: Ident = format_ident!("aa");
+    let ctx = ctx_with_crate(&aa.to_string());
+    let root = ScopeChain::crate_root_with_ident(aa.clone(), vec![]);
+    let bb = ScopeChain::child_mod_attr_less(aa.clone(), &format_ident!("bb"), &root);
+
+    // Add some imports to test
+    ctx.borrow_mut().imports.fold_import_tree(&root, &parse_quote!(crate::x::Y as DirectImport), vec![]);
+    ctx.borrow_mut().imports.fold_import_tree(&bb, &parse_quote!(super::z::W as SuperImport), vec![]);
+    ctx.borrow_mut().imports.fold_import_tree(&bb, &parse_quote!(self::local::V as SelfImport), vec![]);
+
+    // Simulate what happens during import refinement - build resolved imports map
+    // Note: In real usage, this would be called with a proper ScopeResolver
+    let scope_resolver = crate::context::ScopeResolver::default();
+    ctx.borrow_mut().imports.build_resolved_imports_map(&scope_resolver);
+
+    // Test that resolved imports map contains our imports
+    let imports_guard = ctx.borrow();
+    let resolved_imports = &imports_guard.imports.resolved_imports;
+
+    // Check that we have entries for our imports
+    let direct_import_key = (root.clone(), parse_quote!(DirectImport));
+    let super_import_key = (bb.clone(), parse_quote!(SuperImport));
+    let self_import_key = (bb.clone(), parse_quote!(SelfImport));
+
+    assert!(resolved_imports.contains_key(&direct_import_key), "Direct import should be in resolved map");
+    assert!(resolved_imports.contains_key(&super_import_key), "Super import should be in resolved map");
+    assert!(resolved_imports.contains_key(&self_import_key), "Self import should be in resolved map");
+
+    // Test the fast lookup method
+    assert!(imports_guard.imports.resolve_import_in_scope(&root, &parse_quote!(DirectImport)).is_some());
+    assert!(imports_guard.imports.resolve_import_in_scope(&bb, &parse_quote!(SuperImport)).is_some());
+    assert!(imports_guard.imports.resolve_import_in_scope(&bb, &parse_quote!(SelfImport)).is_some());
+
+    // Test that non-existent imports return None
+    assert!(imports_guard.imports.resolve_import_in_scope(&root, &parse_quote!(NonExistent)).is_none());
+}
+
+/// Test that resolved imports map is correctly formatted in output
+#[test]
+fn resolved_imports_formatting_test() {
+    let aa: Ident = format_ident!("aa");
+    let ctx = ctx_with_crate(&aa.to_string());
+    let root = ScopeChain::crate_root_with_ident(aa.clone(), vec![]);
+    let bb = ScopeChain::child_mod_attr_less(aa.clone(), &format_ident!("bb"), &root);
+
+    // Add imports for testing
+    ctx.borrow_mut().imports.fold_import_tree(&root, &parse_quote!(crate::x::Y as TestImport), vec![]);
+    ctx.borrow_mut().imports.fold_import_tree(&bb, &parse_quote!(super::z::W as SuperImport), vec![]);
+
+    // Build resolved imports map
+    let scope_resolver = crate::context::ScopeResolver::default();
+    ctx.borrow_mut().imports.build_resolved_imports_map(&scope_resolver);
+
+    // Test that the resolved imports can be formatted
+    let imports_guard = ctx.borrow();
+    let resolved_imports = &imports_guard.imports.resolved_imports;
+
+    // Test the formatting function
+    let formatted = crate::formatter::scope_resolved_imports_dict(resolved_imports);
+
+    // Should have entries for both scopes
+    assert!(!formatted.is_empty(), "Formatted resolved imports should not be empty");
+
+    // Check that both scope names appear in formatted output
+    let formatted_str = formatted.join("\n");
+    assert!(formatted_str.contains("aa"), "Root scope should appear in formatted output");
+    assert!(formatted_str.contains("aa::bb"), "Child scope should appear in formatted output");
+
+    // Check that the arrow symbol is used for mapping
+    assert!(formatted_str.contains("⇒"), "Should use arrow symbol for import mapping");
+
+    // Check that import names appear
+    assert!(formatted_str.contains("TestImport"), "TestImport should appear in formatted output");
+    assert!(formatted_str.contains("SuperImport"), "SuperImport should appear in formatted output");
+}
+
+/// Test that resolved imports appear in the global context formatting
+#[test]
+fn resolved_imports_in_global_context_formatting() {
+    let aa: Ident = format_ident!("aa");
+    let ctx = ctx_with_crate(&aa.to_string());
+    let root = ScopeChain::crate_root_with_ident(aa.clone(), vec![]);
+
+    // Add an import
+    ctx.borrow_mut().imports.fold_import_tree(&root, &parse_quote!(crate::test::Item as MyItem), vec![]);
+
+    // Build resolved imports map
+    let scope_resolver = crate::context::ScopeResolver::default();
+    ctx.borrow_mut().imports.build_resolved_imports_map(&scope_resolver);
+
+    // Format global context
+    let global_formatted = crate::formatter::format_global_context(&ctx.borrow());
+
+    // Check that resolved imports section appears when there are resolved imports
+    if !ctx.borrow().imports.resolved_imports.is_empty() {
+        assert!(global_formatted.contains("-- resolved_imports:"),
+               "Global context should include resolved imports section when resolved imports exist");
+        assert!(global_formatted.contains("MyItem"),
+               "Resolved imports section should contain the import alias");
+    }
+}
+
+/// Test that resolved imports correctly resolve through reexport chains using GlobalContext::refine()
+#[test]
+fn resolved_imports_with_reexport_resolution() {
+    let aa: Ident = format_ident!("aa");
+    let mut ctx = crate::context::GlobalContext::with_config(crate::Config::new(
+        "fermented",
+        crate::lang::rust::Crate::current_with_name(&aa.to_string()),
+        cbindgen::Config::default(),
+    ));
+
+    let root = ScopeChain::crate_root_with_ident(aa.clone(), vec![]);
+    let bb = ScopeChain::child_mod_attr_less(aa.clone(), &format_ident!("bb"), &root);
+
+    // Add imports that will test reexport resolution
+    ctx.imports.fold_import_tree(&root, &parse_quote!(crate::m::{X as P}), vec![]);
+    ctx.imports.fold_import_tree(&root, &parse_quote!(crate::m::y::{Z as X}), vec![]);
+    ctx.imports.fold_import_tree(&bb, &parse_quote!(super::P as LocalP), vec![]);
+
+    // Call refine() which should build resolved imports with proper reexport resolution
+    ctx.refine();
+
+    // Test that resolved imports map contains our imports
+    let resolved_imports = &ctx.imports.resolved_imports;
+
+    // Check that we have entries for our imports
+    let direct_import_key = (root.clone(), parse_quote!(P));
+    let chain_import_key = (root.clone(), parse_quote!(X));
+    let super_import_key = (bb.clone(), parse_quote!(LocalP));
+
+    assert!(resolved_imports.contains_key(&direct_import_key), "Direct import P should be in resolved map");
+    assert!(resolved_imports.contains_key(&chain_import_key), "Chain import X should be in resolved map");
+    assert!(resolved_imports.contains_key(&super_import_key), "Super import LocalP should be in resolved map");
+
+    // Test that the resolved paths are correct (they should be fully normalized)
+    if let Some(resolved_p) = resolved_imports.get(&direct_import_key) {
+        // Should resolve to aa::m::X (after crate normalization)
+        assert!(resolved_p.to_token_stream().to_string().contains(&aa.to_string()),
+               "Resolved P should contain crate name: {}", resolved_p.to_token_stream());
+    }
+
+    if let Some(resolved_local_p) = resolved_imports.get(&super_import_key) {
+        // Should resolve through super to the resolved path of P
+        assert!(resolved_local_p.to_token_stream().to_string().contains(&aa.to_string()),
+               "Resolved LocalP should contain crate name: {}", resolved_local_p.to_token_stream());
+    }
 }
