@@ -2,7 +2,7 @@ use indexmap::IndexMap;
 use proc_macro2::Ident;
 use syn::{Path, PathSegment, UseGroup, UseName, UsePath, UseRename, UseTree};
 use syn::punctuated::Punctuated;
-use crate::context::{GlobalContext, ScopeChain, ScopeResolver};
+use crate::context::{ScopeChain, ScopeResolver};
 use crate::ext::{GenericBoundKey, ToPath};
 use crate::ext::{Join, CRATE, SELF, SUPER};
 
@@ -123,37 +123,6 @@ impl ImportResolver {
                 if let Some(scope_chain) = scope_resolver.maybe_scope(glob_base) {
                     // Get the type chain for this scope to enumerate available items
                     if let Some(type_chain) = scope_resolver.get(scope_chain) {
-                        for (type_ref, _object_kind) in &type_chain.inner {
-                            // Extract the item name from the type
-                            if let Some(path) = type_ref.to_path().segments.last() {
-                                let item_ident = &path.ident;
-                                let item_path = item_ident.to_path();
-                                let full_path = glob_base.joined(&item_path);
-
-                                // Map the item name to its full path
-                                materialized_map.insert(item_path, full_path);
-                            }
-                        }
-                    }
-                }
-            }
-
-            if !materialized_map.is_empty() {
-                self.materialized_globs.insert(scope.clone(), materialized_map);
-            }
-        }
-    }
-
-    /// Alternative materialization method that works with available scope context
-    pub fn materialize_globs_with_context(&mut self, global_context: &GlobalContext) {
-        for (scope, glob_bases) in &self.globs {
-            let mut materialized_map = IndexMap::new();
-
-            for glob_base in glob_bases {
-                // Try to find scope chain that matches the glob base
-                if let Some(scope_chain) = global_context.scope_register.maybe_scope(glob_base) {
-                    // Get the type chain for this scope to enumerate available items
-                    if let Some(type_chain) = global_context.scope_register.get(scope_chain) {
                         for (type_ref, _object_kind) in &type_chain.inner {
                             // Extract the item name from the type
                             if let Some(path) = type_ref.to_path().segments.last() {
