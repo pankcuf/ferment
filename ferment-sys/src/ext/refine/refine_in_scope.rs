@@ -2,7 +2,7 @@ use quote::ToTokens;
 use syn::{Path, PathSegment, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypeSlice, TypeTraitObject};
 use crate::composable::{GenericBoundsModel, NestedArgument, TraitModel, TypeModel, TypeModeled};
 use crate::context::{GlobalContext, ScopeChain};
-use crate::ext::{AsType, CrateBased, DictionaryType, LifetimeProcessor, ReexportSeek, RefineMut, ToPath};
+use crate::ext::{AsType, CrateBased, DictionaryType, GenericBoundKey, LifetimeProcessor, ReexportSeek, RefineMut, ToPath};
 use crate::kind::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, ObjectKind, SmartPointerModelKind, TypeModelKind};
 
 pub trait RefineInScope {
@@ -80,7 +80,7 @@ impl RefineInScope for ObjectKind {
 
 impl RefineInScope for TypeModelKind {
     fn refine_in_scope(&mut self, scope: &ScopeChain, source: &GlobalContext) -> bool {
-        // Debug all TypeModel processing for Error types
+
         let result = match self {
             TypeModelKind::Dictionary(DictTypeModelKind::Primitive(..)) => false,
             TypeModelKind::Imported(ty_model, import_path, original_alias) => {
@@ -89,11 +89,9 @@ impl RefineInScope for TypeModelKind {
                 let mut model = ty_model.clone();
                 let time = std::time::SystemTime::now();
                 println!("[INFO] Refine Import: {} ({}) in {}", model.as_type().to_token_stream(), import_path.to_token_stream(), scope.fmt_short());
-
                 // Debug specific imports to trace the collision
                 // Always refine nested arguments first and apply them into the model type
                 let _nested_refined = refine_nested_arguments(&mut model, scope, source);
-
                 // Fast path: Try O(1) lookup in resolved imports map with scope chain traversal
                 // Use the original alias if available, otherwise fall back to last segment
                 let import_alias = if let Some(alias) = original_alias {
@@ -112,7 +110,6 @@ impl RefineInScope for TypeModelKind {
                         crate_named_import_path.clone()
                     } else {
                         // Try the enhanced import resolver (checks parent scopes too)
-                        use crate::ext::GenericBoundKey;
                         // First try with the original import_path (alias)
                         let alias_key = GenericBoundKey::Path(import_path.clone());
                         if let Some(resolved) = source.imports.resolve_import_enhanced(scope, &alias_key) {
@@ -196,15 +193,84 @@ impl RefineInScope for TypeModelKind {
                         *self = updated;
                     }
                     true
+                } else {
+                    // Try import resolution for Unknown items (e.g., from glob imports)
+                    // This handles cases where items are available via import resolution but not direct scope lookup
+                    // For import lookup, we need to use just the last segment, not the full qualified path
+                    let import_key = GenericBoundKey::Path(if let Some(last_segment) = path.segments.last() {
+                        last_segment.ident.to_path()
+                    } else {
+                        path.clone()
+                    });
+                    // Try to resolve imports in the current scope, and if that fails, try parent scopes
+                    let resolved_import_path = source.imports.resolve_import_enhanced(scope, &import_key)
+                        // If we're in a nested scope (like an enum or struct), try the parent scope
+                        .or_else(|| scope.parent_scope().and_then(|parent_scope| source.imports.resolve_import_enhanced(parent_scope, &import_key)));
+                    if let Some(resolved_import_path) = resolved_import_path {
+                        // If the resolved import path is just an identifier, we need to get the full path
+                        // from the import resolution system. Check if we can find it in resolved imports.
+                        if resolved_import_path.segments.len() == 1 {
+                            // This is likely a relative path returned by resolve_import_enhanced
+                            // Let's look up the full qualified path from the resolved imports
+                            if let Some(full_qualified_path) = source.imports.resolve_import_enhanced(scope, &import_key)
+                                .or_else(|| scope.parent_scope().and_then(|parent_scope| source.imports.resolve_import_enhanced(parent_scope, &import_key)))
+                                .and_then(|_| {
+                                    // Get the full path from the import resolver's lookup tables
+                                    let simple_ident = resolved_import_path.segments.last()?.ident.to_path();
+                                    // Try to find the mapping in resolved imports for the current scope or parent scopes
+                                    let mut current_scope = Some(scope);
+                                    while let Some(check_scope) = current_scope {
+                                        if let Some(imports_for_scope) = source.imports.inner.get(check_scope) {
+                                            if let Some(full_path) = imports_for_scope.get(&simple_ident) {
+                                                return Some(full_path.clone());
+                                            }
+                                        }
+                                        current_scope = check_scope.parent_scope();
+                                    }
+                                    None
+                                })
+                            {
+                                let mut refined_model = model.clone();
+                                refined_model.refine(&full_qualified_path);
+                                if let Some(found_item) = source.maybe_scope_item_ref_obj_first(&full_qualified_path) {
+                                    refine_ty_with_import_path(refined_model.ty_mut(), found_item.path());
+                                    if let Some(updated) = found_item.update_with(refined_model) {
+                                        *self = updated;
+                                    }
+                                    true
+                                } else {
+                                    false
+                                }
+                            } else {
+                                false
+                            }
+                        } else {
+                            // This is already a full path, proceed as before
+                            let mut refined_model = model.clone();
+                            refined_model.refine(&resolved_import_path);
+                            if let Some(found_item) = source.maybe_scope_item_ref_obj_first(&resolved_import_path) {
+                                refine_ty_with_import_path(refined_model.ty_mut(), found_item.path());
+                                if let Some(updated) = found_item.update_with(refined_model) {
+                                    *self = updated;
+                                }
+                                true
+                            } else {
+                                false
+                            }
+                        }
+                    } else {
+                        false
+                    }
+                }
                 // } else if let Some(reexport) = ReexportSeek::Absolute.maybe_reexport(&path, source) {
                 //     // If reexport path found but not tracked as a scope item (e.g., via glob), promote to Object
                 //     refine_ty_with_import_path(model.ty_mut(), &reexport);
                 //     *self = TypeModelKind::Object(model.clone());
                 //     true
-                } else {
-                    println!("[WARN] Unknown import: {}", model.as_type().to_token_stream());
-                    false
-                }
+                // } else {
+                //     println!("[WARN] Unknown import: {}", model.as_type().to_token_stream());
+                //     false
+                // }
             }
             TypeModelKind::Dictionary(
                 DictTypeModelKind::NonPrimitiveFermentable(

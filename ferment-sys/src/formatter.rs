@@ -613,25 +613,25 @@ pub fn format_all_imports_info(context: &GlobalContext) -> Vec<Vec<String>> {
     }
 
     // Direct Imports: include only if non-empty
-    // let imports = scope_imports_dict(&context.imports.inner);
-    // if !imports.is_empty() {
-    //     sections.push(vec!["-- kind:".to_string()]);
-    //     sections.push(imports);
-    // }
-    //
-    // // Glob Imports: include only if non-empty
-    // let globs = scope_globs_dict(&context.imports.globs);
-    // if !globs.is_empty() {
-    //     sections.push(vec!["-- glob_imports:".to_string()]);
-    //     sections.push(globs);
-    // }
-    //
-    // // Materialized Globs: include only if non-empty
-    // let materialized_globs = scope_materialized_globs_dict(&context.imports.materialized_globs);
-    // if !materialized_globs.is_empty() {
-    //     sections.push(vec!["-- materialized_globs:".to_string()]);
-    //     sections.push(materialized_globs);
-    // }
+    let imports = scope_imports_dict(&context.imports.inner);
+    if !imports.is_empty() {
+        sections.push(vec!["-- kind:".to_string()]);
+        sections.push(imports);
+    }
+
+    // Glob Imports: include only if non-empty
+    let globs = scope_globs_dict(&context.imports.globs);
+    if !globs.is_empty() {
+        sections.push(vec!["-- glob_imports:".to_string()]);
+        sections.push(globs);
+    }
+
+    // Materialized Globs: include only if non-empty
+    let materialized_globs = scope_materialized_globs_dict(&context.imports.materialized_globs);
+    if !materialized_globs.is_empty() {
+        sections.push(vec!["-- materialized_globs:".to_string()]);
+        sections.push(materialized_globs);
+    }
 
     // Resolved Imports: include only if non-empty
     let resolved_imports = scope_resolved_imports_dict(&context.imports.resolved_imports);
@@ -641,20 +641,20 @@ pub fn format_all_imports_info(context: &GlobalContext) -> Vec<Vec<String>> {
     }
 
     // Import Conflicts: always show if any exist
-    // let conflicts = format_import_conflicts(context);
-    // if !conflicts.is_empty() {
-    //     sections.push(vec!["-- import_conflicts:".to_string()]);
-    //     sections.push(conflicts);
-    // }
-    //
-    // // Detailed Glob Resolution Chains: only if debug environment variable is set
-    // if std::env::var("FERMENT_DEBUG_IMPORTS").is_ok() {
-    //     let resolution_chains = format_glob_resolution_chains(context);
-    //     if !resolution_chains.is_empty() {
-    //         sections.push(vec!["-- glob_resolution_chains:".to_string()]);
-    //         sections.push(resolution_chains);
-    //     }
-    // }
+    let conflicts = format_import_conflicts(context);
+    if !conflicts.is_empty() {
+        sections.push(vec!["-- import_conflicts:".to_string()]);
+        sections.push(conflicts);
+    }
+
+    // Detailed Glob Resolution Chains: only if debug environment variable is set
+    if std::env::var("FERMENT_DEBUG_IMPORTS").is_ok() {
+        let resolution_chains = format_glob_resolution_chains(context);
+        if !resolution_chains.is_empty() {
+            sections.push(vec!["-- glob_resolution_chains:".to_string()]);
+            sections.push(resolution_chains);
+        }
+    }
     sections
 }
 

@@ -127,65 +127,68 @@ impl ObjectKind {
 
 
 impl ObjectKind {
+    pub fn is_item(&self) -> bool {
+        matches!(self, Self::Item(..))
+    }
     pub fn is_type(&self, ty: &Type) -> bool {
         match self {
-            ObjectKind::Type(conversion) |
-            ObjectKind::Item(conversion, _) =>
+            Self::Type(conversion) |
+            Self::Item(conversion, _) =>
                 ty.eq(conversion.as_type()),
-            ObjectKind::Empty => false
+            Self::Empty => false
         }
     }
     pub fn is_refined(&self) -> bool {
         match self {
-            ObjectKind::Type(conversion) => conversion.is_refined(),
+            Self::Type(conversion) => conversion.is_refined(),
             _ => true
         }
     }
     pub fn maybe_callback(&self) -> Option<&ParenthesizedGenericArguments> {
         match self {
-            ObjectKind::Type(tyc) |
-            ObjectKind::Item(tyc, _) => tyc.maybe_callback(),
-            ObjectKind::Empty => None
+            Self::Type(tyc) |
+            Self::Item(tyc, _) => tyc.maybe_callback(),
+            Self::Empty => None
         }
     }
 
     pub fn is_lambda(&self) -> bool {
         match self {
-            ObjectKind::Type(tyc) |
-            ObjectKind::Item(tyc, _) => tyc.is_lambda(),
-            ObjectKind::Empty => false
+            Self::Type(tyc) |
+            Self::Item(tyc, _) => tyc.is_lambda(),
+            Self::Empty => false
         }
     }
 
 
     pub fn maybe_trait_or_same_kind(&self, source: &ScopeContext) -> Option<TypeModelKind> {
         match self {
-            ObjectKind::Item(.., ScopeItemKind::Fn(..)) =>
+            Self::Item(.., ScopeItemKind::Fn(..)) =>
                 source.maybe_parent_trait_or_regular_model_kind(),
-            ObjectKind::Type(ref type_model_kind) |
-            ObjectKind::Item(ref type_model_kind, ..) =>
+            Self::Type(ref type_model_kind) |
+            Self::Item(ref type_model_kind, ..) =>
                 type_model_kind.maybe_trait_model_kind_or_same(source),
-            ObjectKind::Empty => None
+            Self::Empty => None
         }
     }
     pub fn maybe_fn_or_trait_or_same_kind(&self, source: &ScopeContext) -> Option<TypeModelKind> {
         match self {
-            ObjectKind::Item(.., ScopeItemKind::Fn(..)) =>
+            Self::Item(.., ScopeItemKind::Fn(..)) =>
                 source.maybe_parent_trait_or_regular_model_kind(),
-            ObjectKind::Type(ref type_model_kind) |
-            ObjectKind::Item(ref type_model_kind, ..) =>
+            Self::Type(ref type_model_kind) |
+            Self::Item(ref type_model_kind, ..) =>
                 type_model_kind.maybe_trait_object_maybe_model_kind(source)
                     .unwrap_or_else(|| Some(type_model_kind.clone())),
-            ObjectKind::Empty => None
+            Self::Empty => None
         }
     }
 
     pub fn maybe_fn_or_trait_or_same_kind2(&self, source: &ScopeContext) -> Option<TypeModelKind> {
         match self {
-            ObjectKind::Item(.., ScopeItemKind::Fn(..)) =>
+            Self::Item(.., ScopeItemKind::Fn(..)) =>
                 source.maybe_parent_trait_or_regular_model_kind(),
-            ObjectKind::Type(ref type_model_kind) |
-            ObjectKind::Item(ref type_model_kind, ..) =>
+            Self::Type(ref type_model_kind) |
+            Self::Item(ref type_model_kind, ..) =>
                 type_model_kind.maybe_trait_model_kind_or_same(source),
             _ => None,
         }
@@ -193,7 +196,7 @@ impl ObjectKind {
 
     pub fn maybe_scope_item(&self) -> Option<&ScopeItemKind> {
         match self {
-            ObjectKind::Item(_, scope_item) => Some(scope_item),
+            Self::Item(_, scope_item) => Some(scope_item),
             _ => None
         }
     }
@@ -213,8 +216,8 @@ impl<SPEC> MaybeLambdaArgs<SPEC> for ObjectKind
 impl ValueReplaceScenario for ObjectKind {
     fn should_replace_with(&self, other: &Self) -> bool {
         match (self, other) {
-            (_, ObjectKind::Item(..)) => true,
-            (ObjectKind::Type(self_ty), ObjectKind::Type(candidate_ty)) => !self_ty.is_refined() || candidate_ty.is_bounds(),
+            (_, Self::Item(..)) => true,
+            (Self::Type(self_ty), Self::Type(candidate_ty)) => !self_ty.is_refined() || candidate_ty.is_bounds(),
             _ => false
         }
     }
@@ -230,11 +233,11 @@ impl ToTokens for ObjectKind {
 impl Debug for ObjectKind {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            ObjectKind::Type(tc) =>
+            Self::Type(tc) =>
                 f.write_fmt(format_args!("Type({tc})")),
-            ObjectKind::Item(tc, item) =>
+            Self::Item(tc, item) =>
                 f.write_fmt(format_args!("Item({tc}, {item})")),
-            ObjectKind::Empty =>
+            Self::Empty =>
                 f.write_str("Empty"),
         }
     }
@@ -249,9 +252,9 @@ impl Display for ObjectKind {
 impl ObjectKind {
     pub fn maybe_type_model_kind_ref(&self) -> Option<&TypeModelKind> {
         match self {
-            ObjectKind::Type(tyc) |
-            ObjectKind::Item(tyc, ..) => Some(tyc),
-            ObjectKind::Empty => None
+            Self::Type(tyc) |
+            Self::Item(tyc, ..) => Some(tyc),
+            Self::Empty => None
         }
     }
     pub fn maybe_type_model_kind(&self) -> Option<TypeModelKind> {
@@ -313,7 +316,7 @@ impl TryFrom<(&Item, &Path)> for ObjectKind {
 impl ResolveAttrs for ObjectKind {
     fn resolve_attrs(&self) -> Vec<Option<Attribute>> {
         match self {
-            ObjectKind::Item(_, item) =>
+            Self::Item(_, item) =>
                 item.resolve_attrs(),
             _ => vec![],
         }

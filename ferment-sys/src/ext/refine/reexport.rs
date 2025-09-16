@@ -5,7 +5,6 @@ use std::collections::{HashMap, HashSet};
 use crate::ast::Colon2Punctuated;
 use crate::context::GlobalContext;
 use crate::ext::{Join, PathTransform, Pop, ToPath, CrateBased, CRATE, SELF, SUPER};
-use crate::kind::ScopeItemKind;
 
 // Lightweight debug toggle for reexport resolution
 fn dbg_enabled() -> bool {
@@ -88,27 +87,27 @@ fn cache_candidates(path: &Path, target: Option<&PathSegment>, candidates: &[Pat
     });
 }
 
-fn get_cached_ancestor_search(path: &Path) -> Option<Option<Path>> {
-    let key = path.to_token_stream().to_string();
-    ANCESTOR_SEARCH_CACHE.with(|cache| cache.borrow().get(&key).cloned())
-}
-
-fn cache_ancestor_search(path: &Path, result: Option<Path>) {
-    let key = path.to_token_stream().to_string();
-    ANCESTOR_SEARCH_CACHE.with(|cache| {
-        cache.borrow_mut().insert(key, result);
-    });
-}
+// fn get_cached_ancestor_search(path: &Path) -> Option<Option<Path>> {
+//     let key = path.to_token_stream().to_string();
+//     ANCESTOR_SEARCH_CACHE.with(|cache| cache.borrow().get(&key).cloned())
+// }
+//
+// fn cache_ancestor_search(path: &Path, result: Option<Path>) {
+//     let key = path.to_token_stream().to_string();
+//     ANCESTOR_SEARCH_CACHE.with(|cache| {
+//         cache.borrow_mut().insert(key, result);
+//     });
+// }
 
 pub enum ReexportSeek {
     Absolute,
-    Relative,
+    // Relative,
 }
 
 impl ReexportSeek {
-    pub fn new(is_absolute: bool) -> Self {
-        if is_absolute { ReexportSeek::Absolute } else { ReexportSeek::Relative }
-    }
+    // pub fn new(is_absolute: bool) -> Self {
+    //     if is_absolute { ReexportSeek::Absolute } else { ReexportSeek::Relative }
+    // }
 
     fn join_reexport(&self, import_path: &Path, scope_path: &Path, crate_name: &Ident, chunk: Option<&Path>) -> Path {
         // TODO: deal with "super::super::"
@@ -154,11 +153,6 @@ impl ReexportSeek {
                     (_, None) =>
                         import_path.clone()
                 }
-            } else {
-                import_path.clone()
-            }
-            ReexportSeek::Relative => if let Some(chunk) = chunk {
-                import_path.popped().joined(chunk)
             } else {
                 import_path.clone()
             }
@@ -776,156 +770,156 @@ fn find_defined_object_path_with_context(target: &PathSegment, base_path: &Path,
     None
 }
 
-// Helper function to find the best path candidate based on path structure matching
-fn find_best_path_candidate(target_path: &Path, candidates: &[(Path, Path)]) -> Option<(Path, Path)> {
-    if candidates.is_empty() {
-        return None;
-    }
-
-
-    // First, try to find exact path structure matches
-    for &(ref ancestor_path, ref candidate_path) in candidates.iter() {
-        if is_exact_path_match2(target_path, candidate_path) {
-            return Some((ancestor_path.clone(), candidate_path.clone()));
-        }
-    }
-
-    // If no exact match, return the first candidate (fallback to original behavior)
-    Some(candidates[0].clone())
-}
-
-// Import the exact path matching logic from reexport.rs
-fn is_exact_path_match2(base: &Path, candidate: &Path) -> bool {
-    // Check if the base path segments appear consecutively in the candidate path
-    if base.segments.is_empty() {
-        return true;
-    }
-
-    if candidate.segments.len() < base.segments.len() {
-        return false;
-    }
-
-    let base_segments: Vec<_> = base.segments.iter().collect();
-    let candidate_segments: Vec<_> = candidate.segments.iter().collect();
-
-    // Skip the first segment (usually the crate name) and look for the rest as a subsequence
-    for start_pos in 0..=(candidate_segments.len() - base_segments.len()) {
-        let mut matches = true;
-        for (i, base_seg) in base_segments.iter().enumerate() {
-            if candidate_segments[start_pos + i].ident != base_seg.ident {
-                matches = false;
-                break;
-            }
-        }
-        if matches {
-            return true;
-        }
-    }
-
-    // If no exact match, try pattern matching for common cases where paths have
-    // similar structure but with additional intermediate segments
-    if base_segments.len() >= 2 {
-        let first_base = &base_segments[0];
-        let last_base = base_segments.last().unwrap();
-
-        // Check if first and last segments match, and middle segments appear as a subsequence
-        if candidate_segments.first().map(|seg| seg.ident == first_base.ident).unwrap_or_default() &&
-            candidate_segments.last().map(|seg| seg.ident == last_base.ident).unwrap_or_default() {
-
-            // Check if the middle segments of base appear as a contiguous subsequence in candidate
-            return if base_segments.len() > 2 {
-                is_subsequence_contiguous(&base_segments[1..base_segments.len() - 1], &candidate_segments[1..candidate_segments.len() - 1])
-            } else {
-                true // Only first and last match, which is sufficient
-            }
-        }
-    }
-
-    false
-}
-
-// Helper function to check if `needle` appears as a contiguous subsequence in `haystack`
-fn is_subsequence_contiguous(needle: &[&syn::PathSegment], haystack: &[&syn::PathSegment]) -> bool {
-    if needle.is_empty() {
-        return true;
-    }
-    if haystack.len() < needle.len() {
-        return false;
-    }
-
-    for start_pos in 0..=(haystack.len() - needle.len()) {
-        let mut matches = true;
-        for (i, needle_seg) in needle.iter().enumerate() {
-            if haystack[start_pos + i].ident != needle_seg.ident {
-                matches = false;
-                break;
-            }
-        }
-        if matches {
-            return true;
-        }
-    }
-
-    false
-}
-
-
-pub fn find_best_ancestor<'a>(resolved_import_path: &Path, source: &'a GlobalContext) -> Option<&'a ScopeItemKind> {
-    // Check cache first - this is an expensive operation
-    if let Some(cached_path) = get_cached_ancestor_search(resolved_import_path) {
-        return cached_path.and_then(|p| source.maybe_scope_item_ref_obj_first(&p));
-    }
-
-    // Find the best existing ancestor scope and scan its descendants for a matching leaf
-    let mut anc = resolved_import_path.popped();
-    let last_seg = resolved_import_path.segments.last().cloned();
-    let mut best_candidate: Option<(usize, Path, Path)> = None; // (depth, ancestor_path, candidate_path)
-
-    while !anc.segments.is_empty() {
-        if let Some(ancestor_scope) = source.maybe_scope_ref(&anc) {
-            if let Some(last_seg) = last_seg.as_ref() {
-                let ancestor_path = ancestor_scope.self_path_ref();
-
-                // Find all possible candidates and prioritize based on path structure
-                let mut candidates = Vec::new();
-                for scope_chain in source.scope_register.inner.keys() {
-                    let scope_path = scope_chain.self_path_ref();
-                    if ancestor_path.segments.len() <= scope_path.segments.len()
-                        && scope_path.segments.iter().zip(ancestor_path.segments.iter()).all(|(a, b)| a.ident == b.ident) {
-                        let already_matches_last = scope_path.segments.last().map(|s| s.ident == last_seg.ident).unwrap_or_default();
-                        let candidate = if already_matches_last { scope_path.clone() } else { scope_path.joined(&last_seg.ident.to_path()) };
-                        if source.maybe_scope_item_ref_obj_first(&candidate).is_some() {
-                            candidates.push((ancestor_path.clone(), candidate));
-                        }
-                    }
-                }
-
-                // Find the best candidate using path structure matching
-                if let Some(best_found) = find_best_path_candidate(&resolved_import_path, &candidates) {
-                    let depth = best_found.0.segments.len();
-                    let should_update = match &best_candidate {
-                        None => true,
-                        Some((best_depth, _, _)) => {
-                            // Prioritize exact matches, then depth
-                            depth > *best_depth
-                        }
-                    };
-
-                    if should_update {
-                        best_candidate = Some((depth, best_found.0, best_found.1));
-                    }
-                }
-            }
-        }
-        anc = anc.popped();
-    }
-
-    if let Some((_, ancestor_path, candidate)) = best_candidate {
-        reexport_dbg!("Found the best ancestor: {}", ancestor_path.to_token_stream());
-        cache_ancestor_search(resolved_import_path, Some(candidate.clone()));
-        source.maybe_scope_item_ref_obj_first(&candidate)
-    } else {
-        cache_ancestor_search(resolved_import_path, None);
-        None
-    }
-}
+// // Helper function to find the best path candidate based on path structure matching
+// fn find_best_path_candidate(target_path: &Path, candidates: &[(Path, Path)]) -> Option<(Path, Path)> {
+//     if candidates.is_empty() {
+//         return None;
+//     }
+//
+//
+//     // First, try to find exact path structure matches
+//     for &(ref ancestor_path, ref candidate_path) in candidates.iter() {
+//         if is_exact_path_match2(target_path, candidate_path) {
+//             return Some((ancestor_path.clone(), candidate_path.clone()));
+//         }
+//     }
+//
+//     // If no exact match, return the first candidate (fallback to original behavior)
+//     Some(candidates[0].clone())
+// }
+//
+// // Import the exact path matching logic from reexport.rs
+// fn is_exact_path_match2(base: &Path, candidate: &Path) -> bool {
+//     // Check if the base path segments appear consecutively in the candidate path
+//     if base.segments.is_empty() {
+//         return true;
+//     }
+//
+//     if candidate.segments.len() < base.segments.len() {
+//         return false;
+//     }
+//
+//     let base_segments: Vec<_> = base.segments.iter().collect();
+//     let candidate_segments: Vec<_> = candidate.segments.iter().collect();
+//
+//     // Skip the first segment (usually the crate name) and look for the rest as a subsequence
+//     for start_pos in 0..=(candidate_segments.len() - base_segments.len()) {
+//         let mut matches = true;
+//         for (i, base_seg) in base_segments.iter().enumerate() {
+//             if candidate_segments[start_pos + i].ident != base_seg.ident {
+//                 matches = false;
+//                 break;
+//             }
+//         }
+//         if matches {
+//             return true;
+//         }
+//     }
+//
+//     // If no exact match, try pattern matching for common cases where paths have
+//     // similar structure but with additional intermediate segments
+//     if base_segments.len() >= 2 {
+//         let first_base = &base_segments[0];
+//         let last_base = base_segments.last().unwrap();
+//
+//         // Check if first and last segments match, and middle segments appear as a subsequence
+//         if candidate_segments.first().map(|seg| seg.ident == first_base.ident).unwrap_or_default() &&
+//             candidate_segments.last().map(|seg| seg.ident == last_base.ident).unwrap_or_default() {
+//
+//             // Check if the middle segments of base appear as a contiguous subsequence in candidate
+//             return if base_segments.len() > 2 {
+//                 is_subsequence_contiguous(&base_segments[1..base_segments.len() - 1], &candidate_segments[1..candidate_segments.len() - 1])
+//             } else {
+//                 true // Only first and last match, which is sufficient
+//             }
+//         }
+//     }
+//
+//     false
+// }
+//
+// // Helper function to check if `needle` appears as a contiguous subsequence in `haystack`
+// fn is_subsequence_contiguous(needle: &[&syn::PathSegment], haystack: &[&syn::PathSegment]) -> bool {
+//     if needle.is_empty() {
+//         return true;
+//     }
+//     if haystack.len() < needle.len() {
+//         return false;
+//     }
+//
+//     for start_pos in 0..=(haystack.len() - needle.len()) {
+//         let mut matches = true;
+//         for (i, needle_seg) in needle.iter().enumerate() {
+//             if haystack[start_pos + i].ident != needle_seg.ident {
+//                 matches = false;
+//                 break;
+//             }
+//         }
+//         if matches {
+//             return true;
+//         }
+//     }
+//
+//     false
+// }
+//
+//
+// pub fn find_best_ancestor<'a>(resolved_import_path: &Path, source: &'a GlobalContext) -> Option<&'a ScopeItemKind> {
+//     // Check cache first - this is an expensive operation
+//     if let Some(cached_path) = get_cached_ancestor_search(resolved_import_path) {
+//         return cached_path.and_then(|p| source.maybe_scope_item_ref_obj_first(&p));
+//     }
+//
+//     // Find the best existing ancestor scope and scan its descendants for a matching leaf
+//     let mut anc = resolved_import_path.popped();
+//     let last_seg = resolved_import_path.segments.last().cloned();
+//     let mut best_candidate: Option<(usize, Path, Path)> = None; // (depth, ancestor_path, candidate_path)
+//
+//     while !anc.segments.is_empty() {
+//         if let Some(ancestor_scope) = source.maybe_scope_ref(&anc) {
+//             if let Some(last_seg) = last_seg.as_ref() {
+//                 let ancestor_path = ancestor_scope.self_path_ref();
+//
+//                 // Find all possible candidates and prioritize based on path structure
+//                 let mut candidates = Vec::new();
+//                 for scope_chain in source.scope_register.inner.keys() {
+//                     let scope_path = scope_chain.self_path_ref();
+//                     if ancestor_path.segments.len() <= scope_path.segments.len()
+//                         && scope_path.segments.iter().zip(ancestor_path.segments.iter()).all(|(a, b)| a.ident == b.ident) {
+//                         let already_matches_last = scope_path.segments.last().map(|s| s.ident == last_seg.ident).unwrap_or_default();
+//                         let candidate = if already_matches_last { scope_path.clone() } else { scope_path.joined(&last_seg.ident.to_path()) };
+//                         if source.maybe_scope_item_ref_obj_first(&candidate).is_some() {
+//                             candidates.push((ancestor_path.clone(), candidate));
+//                         }
+//                     }
+//                 }
+//
+//                 // Find the best candidate using path structure matching
+//                 if let Some(best_found) = find_best_path_candidate(&resolved_import_path, &candidates) {
+//                     let depth = best_found.0.segments.len();
+//                     let should_update = match &best_candidate {
+//                         None => true,
+//                         Some((best_depth, _, _)) => {
+//                             // Prioritize exact matches, then depth
+//                             depth > *best_depth
+//                         }
+//                     };
+//
+//                     if should_update {
+//                         best_candidate = Some((depth, best_found.0, best_found.1));
+//                     }
+//                 }
+//             }
+//         }
+//         anc = anc.popped();
+//     }
+//
+//     if let Some((_, ancestor_path, candidate)) = best_candidate {
+//         reexport_dbg!("Found the best ancestor: {}", ancestor_path.to_token_stream());
+//         cache_ancestor_search(resolved_import_path, Some(candidate.clone()));
+//         source.maybe_scope_item_ref_obj_first(&candidate)
+//     } else {
+//         cache_ancestor_search(resolved_import_path, None);
+//         None
+//     }
+// }

@@ -216,7 +216,13 @@ impl<'a> VisitScopeType<'a> for Path {
                     // Can be reevaluated after processing entire scope tree:
                     // Because import path can have multiple aliases and we need the most complete one to use mangling correctly
                     // We can also determine the type after processing entire scope (if one in fermented crate)
-                    ObjectKind::imported_model_type(handle_type_path_model(qself, None, segments.clone(), nested_arguments), import_path.crate_named(&scope.crate_ident_as_path()), Some(ident.clone()))
+
+                    // Try to get the resolved import path (full qualified path) instead of the scoped import path
+                    let resolved_import_path = context.imports.resolve_import_enhanced(scope, &generic_key)
+                        .map(|p| p.clone())
+                        .unwrap_or_else(|| import_path.crate_named(&scope.crate_ident_as_path()));
+
+                    ObjectKind::imported_model_type(handle_type_path_model(qself, None, segments.clone(), nested_arguments), resolved_import_path, Some(ident.clone()))
                 } else if let Some(generic_bounds) = context.generics.maybe_generic_bounds(scope, &ident.to_type()) {
                     // TODO: multiple bounds handling
                     if let Some(first_bound) = generic_bounds.first() {

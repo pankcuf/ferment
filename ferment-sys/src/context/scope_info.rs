@@ -28,7 +28,7 @@ impl ScopeInfo {
         self.attrs.is_labeled_for_opaque_export().then_some("Opaque")
             .or_else(|| self.attrs.is_labeled_for_export().then_some("Fermented"))
             .or_else(|| self.attrs.is_labeled_for_opaque_export().then_some("Opaque"))
-            .unwrap_or("Unknown")
+            .unwrap_or("Non-Determined")
             .to_string()
     }
     pub fn self_path(&self) -> &Path {
