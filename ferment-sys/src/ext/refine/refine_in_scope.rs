@@ -2,8 +2,8 @@ use quote::ToTokens;
 use syn::{Path, PathSegment, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypeSlice, TypeTraitObject};
 use crate::composable::{GenericBoundsModel, NestedArgument, TraitModel, TypeModel, TypeModeled};
 use crate::context::{GlobalContext, ScopeChain};
-use crate::ext::{find_best_ancestor, AsType, CrateBased, DictionaryType, Join, LifetimeProcessor, ReexportSeek, RefineMut, ToPath};
-use crate::kind::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, TypeModelKind};
+use crate::ext::{AsType, CrateBased, DictionaryType, LifetimeProcessor, ReexportSeek, RefineMut, ToPath};
+use crate::kind::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, ObjectKind, SmartPointerModelKind, TypeModelKind};
 
 pub trait RefineInScope {
     fn refine_in_scope(&mut self, scope: &ScopeChain, source: &GlobalContext) -> bool;
@@ -80,22 +80,25 @@ impl RefineInScope for ObjectKind {
 
 impl RefineInScope for TypeModelKind {
     fn refine_in_scope(&mut self, scope: &ScopeChain, source: &GlobalContext) -> bool {
-        // println!("REFINE --> {} \n\tin {}", self, scope.fmt_short());
+        // Debug all TypeModel processing for Error types
         let result = match self {
             TypeModelKind::Dictionary(DictTypeModelKind::Primitive(..)) => false,
-            TypeModelKind::Imported(ty_model, import_path) => {
+            TypeModelKind::Imported(ty_model, import_path, original_alias) => {
                 let crate_name = scope.crate_ident_as_path();
                 let crate_named_import_path = import_path.crate_named(&crate_name);
                 let mut model = ty_model.clone();
                 let time = std::time::SystemTime::now();
-                println!("[INFO] (Import) Refine Unknown import: {} ({}) in {}", model.as_type().to_token_stream(), import_path.to_token_stream(), scope.fmt_short());
+                println!("[INFO] Refine Import: {} ({}) in {}", model.as_type().to_token_stream(), import_path.to_token_stream(), scope.fmt_short());
 
+                // Debug specific imports to trace the collision
                 // Always refine nested arguments first and apply them into the model type
                 let _nested_refined = refine_nested_arguments(&mut model, scope, source);
 
                 // Fast path: Try O(1) lookup in resolved imports map with scope chain traversal
-                // Extract the import alias (last segment) since that's what appears in the resolved imports map
-                let import_alias = if let Some(last_segment) = crate_named_import_path.segments.last() {
+                // Use the original alias if available, otherwise fall back to last segment
+                let import_alias = if let Some(alias) = original_alias {
+                    alias.to_path()
+                } else if let Some(last_segment) = crate_named_import_path.segments.last() {
                     last_segment.ident.to_path()
                 } else {
                     crate_named_import_path.clone()
@@ -106,23 +109,29 @@ impl RefineInScope for TypeModelKind {
                 } else {
                     // Check if this looks like an external crate import before doing expensive searches
                     if is_likely_external_import(&crate_named_import_path, scope, source) {
-                        // For external imports, don't do expensive searches - just use the import path as-is
-                        println!("[INFO] Import {} appears external, skipping expensive resolution", crate_named_import_path.to_token_stream());
                         crate_named_import_path.clone()
                     } else {
                         // Try the enhanced import resolver (checks parent scopes too)
                         use crate::ext::GenericBoundKey;
-                        let key = GenericBoundKey::Path(crate_named_import_path.clone());
-                        if let Some(resolved) = source.imports.resolve_import_enhanced(scope, &key) {
+                        // First try with the original import_path (alias)
+                        let alias_key = GenericBoundKey::Path(import_path.clone());
+                        if let Some(resolved) = source.imports.resolve_import_enhanced(scope, &alias_key) {
                             resolved.clone()
                         } else {
-                            // Last fallback: Use the slower resolve_absolute_path for backward compatibility
-                            source.imports
-                                .resolve_absolute_path(&crate_named_import_path, scope)
-                                .unwrap_or_else(|| crate_named_import_path.clone())
+                            // Fallback to crate-named path
+                            let key = GenericBoundKey::Path(crate_named_import_path.clone());
+                            if let Some(resolved) = source.imports.resolve_import_enhanced(scope, &key) {
+                                resolved.clone()
+                            } else {
+                                // Last fallback: Use the slower resolve_absolute_path for backward compatibility
+                                source.imports
+                                    .resolve_absolute_path(&crate_named_import_path, scope)
+                                    .unwrap_or_else(|| crate_named_import_path.clone())
+                            }
                         }
                     }
                 };
+
                 model.refine(&resolved_import_path);
                 if let Some(dictionary_type) = maybe_dict_type_model_kind(&crate_named_import_path, &mut model) {
                     //println!("[INFO] (Import) Dictionary item found: {}", dictionary_type);
@@ -130,7 +139,6 @@ impl RefineInScope for TypeModelKind {
 
                 } else {
 
-                    let scope_path = model.lifetimes_cleaned().pointer_less();
                     println!("[INFO] Import resolved as ({} ms): {}", std::time::SystemTime::now().duration_since(time).unwrap().as_millis(), resolved_import_path.to_token_stream());
                     // Try direct resolution, then descendMayant search under nearest existing ancestor, then absolute reexport.
                     if let Some(found_item) = source.maybe_scope_item_ref_obj_first(&resolved_import_path) {
@@ -163,7 +171,7 @@ impl RefineInScope for TypeModelKind {
                     //     println!("[WARN] Import refined as External ({} ms): {}", std::time::SystemTime::now().duration_since(time).unwrap().as_millis(), reexport.to_token_stream());
                     //     *self = TypeModelKind::Object(model);
                     } else {
-                        println!("[WARN] Import Unknown ({} ms): {}",  std::time::SystemTime::now().duration_since(time).unwrap().as_millis(), model.as_type().to_token_stream());
+                        println!("[WARN] Import refined as Unknown ({} ms): {}",  std::time::SystemTime::now().duration_since(time).unwrap().as_millis(), model.as_type().to_token_stream());
                         *self = TypeModelKind::Unknown(model)
                     }
                 }
@@ -194,7 +202,7 @@ impl RefineInScope for TypeModelKind {
                 //     *self = TypeModelKind::Object(model.clone());
                 //     true
                 } else {
-                    println!("[WARN] (Unknown) Unknown import: {}", model.as_type().to_token_stream());
+                    println!("[WARN] Unknown import: {}", model.as_type().to_token_stream());
                     false
                 }
             }
@@ -336,98 +344,98 @@ fn maybe_dict_type_model_kind(crate_named_import_path: &Path, model: &mut TypeMo
     })
 }
 
-fn determine_scope_item<'a>(new_ty_to_replace: &mut Type, ty_path: Path, scope: &ScopeChain, source: &'a GlobalContext) -> Option<&'a ScopeItemKind> {
-    // There are 2 cases:
-    // 1. it's from non-fermented crate
-    // 2. it's not full scope:
-    // - It's reexported somewhere?
-    //     - It's child scope?
-    //     - It's neighbour scope?
-    // println!("determine_scope_item: {} /// {} in {}", new_ty_to_replace.to_token_stream(), ty_path.to_token_stream(), scope.fmt_short());
-    match scope {
-        ScopeChain::CrateRoot { info, .. } |
-        ScopeChain::Mod { info, .. } => {
-            // self -> neighbour mod
-            let self_path = info.self_path();
-            // Respect absolute paths: if `ty_path` starts with crate ident or `crate`, do not join.
-            // For other paths, rely on import resolution to determine if they should be absolute
-            let is_absolute = ty_path.is_crate_based()
-                || ty_path.segments.first().map(|s| s.ident.eq(&info.crate_ident)).unwrap_or_default();
-            let child_scope = if is_absolute { ty_path.clone() } else { self_path.joined(&ty_path) };
-            // child -> self
-            // If it's nested mod?
-            source.maybe_scope_item_ref_obj_first(&child_scope)
-                .inspect(|item| refine_ty_with_import_path(new_ty_to_replace, item.path()))
-                .or_else(|| ReexportSeek::new(is_absolute)
-                    .maybe_reexport(&child_scope, source)
-                    .and_then(|reexport| source.maybe_scope_item_ref_obj_first(&reexport)
-                        .inspect(|item| refine_ty_with_import_path(new_ty_to_replace, item.path())))
-                    .or_else(|| source.maybe_scope_item_ref_obj_first(self_path)))
-        }
-        ScopeChain::Impl { parent, .. } |
-        ScopeChain::Trait { parent, .. } |
-        ScopeChain::Object { parent, .. } => {
-            //  -- Import Scope: [ferment_example_entry_point::entry::rnt]
-            //      -- Has Scope?: ferment_example_entry_point::entry::rnt::tokio::runtime::Runtime --- No
-            //      -- Has Scope? ferment_example_entry_point::entry::rnt::tokio::runtime --- No
-            //      -- Has Scope? ferment_example_entry_point::entry::rnt::tokio --- No
-            //      -- Not a local import, so check globals:
-            //          -- Has Scope? tokio::runtime --- No
-            //          -- Has Scope? tokio --- No
-            //          -- Not a global import, so it's from non-fermented crate -> So it's opaque
-
-            // self -> parent mod -> neighbour mod
-            // let self_path = info.self_path();
-            let parent_path = parent.self_path_ref();
-            // check parent + local
-
-            // Respect absolute paths: if `ty_path` starts with crate ident or `crate`, do not join.
-            // For other paths, rely on import resolution to determine if they should be absolute
-            let is_absolute = ty_path.is_crate_based()
-                || ty_path.segments.first().map(|s| s.ident.eq(parent.crate_ident_ref())).unwrap_or_default();
-            let child_scope = if is_absolute { ty_path.clone() } else { parent_path.joined(&ty_path) };
-            source.maybe_scope_item_ref_obj_first(&child_scope)
-                .inspect(|item| refine_ty_with_import_path(new_ty_to_replace, item.path()))
-                .or_else(||
-                    ReexportSeek::new(is_absolute)
-                        .maybe_reexport(&child_scope, source)
-                        .and_then(|reexport| source.maybe_scope_item_ref_obj_first(&reexport))
-                        .or_else(|| source.maybe_scope_item_ref_obj_first(parent_path))
-                        .or_else(|| source.maybe_scope_item_ref_obj_first(&parent_path.joined(&ty_path))
-                            .inspect(|item| refine_ty_with_import_path(new_ty_to_replace, item.path()))))
-        }
-        ScopeChain::Fn { parent, .. } => {
-            // - Check parent scopes for items relative to the function scope (do not match the function itself)
-            match &**parent {
-                    ScopeChain::CrateRoot { info, .. } |
-                    ScopeChain::Mod { info, .. } => {
-                        let base = info.self_path();
-                        let is_absolute = ty_path.is_crate_based()
-                            || ty_path.segments.first().map(|s| s.ident.eq(&info.crate_ident)).unwrap_or_default();
-                        let scope = if is_absolute { ty_path.clone() } else { base.joined(&ty_path) };
-                        source.maybe_scope_item_ref_obj_first(&scope)
-                            .inspect(|item| refine_ty_with_import_path(new_ty_to_replace, item.path()))
-
-                    },
-                    ScopeChain::Trait { parent, .. } |
-                    ScopeChain::Object { parent, .. } |
-                    ScopeChain::Impl { parent, .. } => {
-                        let base = parent.self_path_ref().clone();
-                        let is_absolute = ty_path.is_crate_based()
-                            || ty_path.segments.first().map(|s| s.ident == *parent.crate_ident_ref()).unwrap_or_default();
-                        let scope = if is_absolute { ty_path.clone() } else { base.joined(&ty_path) };
-                        source.maybe_scope_item_ref_obj_first(&scope)
-                            .inspect(|item| refine_ty_with_import_path(new_ty_to_replace, item.path()))
-                    },
-                    ScopeChain::Fn { .. } => {
-                        // TODO: support nested function when necessary
-                        //println!("nested function::: {} --- [{}]", info.self_scope, parent);
-                        None
-                    }
-                }
-        }
-    }
-}
+// fn determine_scope_item<'a>(new_ty_to_replace: &mut Type, ty_path: Path, scope: &ScopeChain, source: &'a GlobalContext) -> Option<&'a ScopeItemKind> {
+//     // There are 2 cases:
+//     // 1. it's from non-fermented crate
+//     // 2. it's not full scope:
+//     // - It's reexported somewhere?
+//     //     - It's child scope?
+//     //     - It's neighbour scope?
+//     // println!("determine_scope_item: {} /// {} in {}", new_ty_to_replace.to_token_stream(), ty_path.to_token_stream(), scope.fmt_short());
+//     match scope {
+//         ScopeChain::CrateRoot { info, .. } |
+//         ScopeChain::Mod { info, .. } => {
+//             // self -> neighbour mod
+//             let self_path = info.self_path();
+//             // Respect absolute paths: if `ty_path` starts with crate ident or `crate`, do not join.
+//             // For other paths, rely on import resolution to determine if they should be absolute
+//             let is_absolute = ty_path.is_crate_based()
+//                 || ty_path.segments.first().map(|s| s.ident.eq(&info.crate_ident)).unwrap_or_default();
+//             let child_scope = if is_absolute { ty_path.clone() } else { self_path.joined(&ty_path) };
+//             // child -> self
+//             // If it's nested mod?
+//             source.maybe_scope_item_ref_obj_first(&child_scope)
+//                 .inspect(|item| refine_ty_with_import_path(new_ty_to_replace, item.path()))
+//                 .or_else(|| ReexportSeek::new(is_absolute)
+//                     .maybe_reexport(&child_scope, source)
+//                     .and_then(|reexport| source.maybe_scope_item_ref_obj_first(&reexport)
+//                         .inspect(|item| refine_ty_with_import_path(new_ty_to_replace, item.path())))
+//                     .or_else(|| source.maybe_scope_item_ref_obj_first(self_path)))
+//         }
+//         ScopeChain::Impl { parent, .. } |
+//         ScopeChain::Trait { parent, .. } |
+//         ScopeChain::Object { parent, .. } => {
+//             //  -- Import Scope: [ferment_example_entry_point::entry::rnt]
+//             //      -- Has Scope?: ferment_example_entry_point::entry::rnt::tokio::runtime::Runtime --- No
+//             //      -- Has Scope? ferment_example_entry_point::entry::rnt::tokio::runtime --- No
+//             //      -- Has Scope? ferment_example_entry_point::entry::rnt::tokio --- No
+//             //      -- Not a local import, so check globals:
+//             //          -- Has Scope? tokio::runtime --- No
+//             //          -- Has Scope? tokio --- No
+//             //          -- Not a global import, so it's from non-fermented crate -> So it's opaque
+//
+//             // self -> parent mod -> neighbour mod
+//             // let self_path = info.self_path();
+//             let parent_path = parent.self_path_ref();
+//             // check parent + local
+//
+//             // Respect absolute paths: if `ty_path` starts with crate ident or `crate`, do not join.
+//             // For other paths, rely on import resolution to determine if they should be absolute
+//             let is_absolute = ty_path.is_crate_based()
+//                 || ty_path.segments.first().map(|s| s.ident.eq(parent.crate_ident_ref())).unwrap_or_default();
+//             let child_scope = if is_absolute { ty_path.clone() } else { parent_path.joined(&ty_path) };
+//             source.maybe_scope_item_ref_obj_first(&child_scope)
+//                 .inspect(|item| refine_ty_with_import_path(new_ty_to_replace, item.path()))
+//                 .or_else(||
+//                     ReexportSeek::new(is_absolute)
+//                         .maybe_reexport(&child_scope, source)
+//                         .and_then(|reexport| source.maybe_scope_item_ref_obj_first(&reexport))
+//                         .or_else(|| source.maybe_scope_item_ref_obj_first(parent_path))
+//                         .or_else(|| source.maybe_scope_item_ref_obj_first(&parent_path.joined(&ty_path))
+//                             .inspect(|item| refine_ty_with_import_path(new_ty_to_replace, item.path()))))
+//         }
+//         ScopeChain::Fn { parent, .. } => {
+//             // - Check parent scopes for items relative to the function scope (do not match the function itself)
+//             match &**parent {
+//                     ScopeChain::CrateRoot { info, .. } |
+//                     ScopeChain::Mod { info, .. } => {
+//                         let base = info.self_path();
+//                         let is_absolute = ty_path.is_crate_based()
+//                             || ty_path.segments.first().map(|s| s.ident.eq(&info.crate_ident)).unwrap_or_default();
+//                         let scope = if is_absolute { ty_path.clone() } else { base.joined(&ty_path) };
+//                         source.maybe_scope_item_ref_obj_first(&scope)
+//                             .inspect(|item| refine_ty_with_import_path(new_ty_to_replace, item.path()))
+//
+//                     },
+//                     ScopeChain::Trait { parent, .. } |
+//                     ScopeChain::Object { parent, .. } |
+//                     ScopeChain::Impl { parent, .. } => {
+//                         let base = parent.self_path_ref().clone();
+//                         let is_absolute = ty_path.is_crate_based()
+//                             || ty_path.segments.first().map(|s| s.ident == *parent.crate_ident_ref()).unwrap_or_default();
+//                         let scope = if is_absolute { ty_path.clone() } else { base.joined(&ty_path) };
+//                         source.maybe_scope_item_ref_obj_first(&scope)
+//                             .inspect(|item| refine_ty_with_import_path(new_ty_to_replace, item.path()))
+//                     },
+//                     ScopeChain::Fn { .. } => {
+//                         // TODO: support nested function when necessary
+//                         //println!("nested function::: {} --- [{}]", info.self_scope, parent);
+//                         None
+//                     }
+//                 }
+//         }
+//     }
+// }
 
 fn refine_nested_arguments(model: &mut TypeModel, scope: &ScopeChain, source: &GlobalContext) -> bool {
     let mut refined = false;

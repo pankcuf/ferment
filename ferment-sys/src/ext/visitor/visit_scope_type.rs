@@ -32,7 +32,7 @@ impl<'a> VisitScopeType<'a> for Type {
             Type::Ptr(TypePtr { elem, const_token, mutability, .. }) => {
                 let mut obj = elem.visit_scope_type(source);
                 if let ObjectKind::Type(tyc) | ObjectKind::Item(tyc, _) = &mut obj {
-                    let ty = if let TypeModelKind::Imported(ty, import_path) = &tyc {
+                    let ty = if let TypeModelKind::Imported(ty, import_path, _) = &tyc {
                         import_path.popped().joined(ty.as_type()).to_type()
                     } else {
                         tyc.to_type()
@@ -216,7 +216,7 @@ impl<'a> VisitScopeType<'a> for Path {
                     // Can be reevaluated after processing entire scope tree:
                     // Because import path can have multiple aliases and we need the most complete one to use mangling correctly
                     // We can also determine the type after processing entire scope (if one in fermented crate)
-                    ObjectKind::imported_model_type(handle_type_path_model(qself, None, segments, nested_arguments), import_path.crate_named(&scope.crate_ident_as_path()))
+                    ObjectKind::imported_model_type(handle_type_path_model(qself, None, segments.clone(), nested_arguments), import_path.crate_named(&scope.crate_ident_as_path()), Some(ident.clone()))
                 } else if let Some(generic_bounds) = context.generics.maybe_generic_bounds(scope, &ident.to_type()) {
                     // TODO: multiple bounds handling
                     if let Some(first_bound) = generic_bounds.first() {

@@ -4,6 +4,9 @@ pub mod zz;
 pub mod blockdata;
 pub mod data_contract;
 pub mod errors;
+pub mod error1;
+pub mod error2;
+pub mod error3;
 
 pub use crate::blockdata::script::{self, ScriptBuf};
 pub use errors::*;

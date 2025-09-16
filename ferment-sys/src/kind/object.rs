@@ -69,8 +69,8 @@ impl ObjectKind {
     pub fn dict_type(kind: DictTypeModelKind) -> Self {
         Self::Type(TypeModelKind::Dictionary(kind))
     }
-    pub fn imported_model_type(model: TypeModel, path: Path) -> Self {
-        Self::Type(TypeModelKind::Imported(model, path))
+    pub fn imported_model_type(model: TypeModel, path: Path, original_alias: Option<proc_macro2::Ident>) -> Self {
+        Self::Type(TypeModelKind::Imported(model, path, original_alias))
     }
     pub fn primitive_type(ident: &Ident) -> Self {
         Self::dict_type(DictTypeModelKind::Primitive(TypeModel::new_default(ident.to_type())))

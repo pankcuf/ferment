@@ -157,6 +157,7 @@ impl CrateTree {
                         ScopeTreeExportItem::Tree(scope_context, imported, exported, attrs) =>
                             Some(create_crate_root_scope_tree(external_crate.ident(), scope_context, imported, exported, attrs))
                     }));
+                //current_tree.print_scope_tree_with_message("PHASE 222: CRATE TREE UNREFINED CONTEXT");
                 // print_phase!("PHASE 2: CURRENT CRATE TREE", "\n{:?}", current_tree);
                 // print_phase!("PHASE 2: EXTERNAL CRATES TREE", "\n{:?}", external_crates);
                 // current_tree.print_scope_tree_with_message("PHASE 2: CRATE TREE CONTEXT");

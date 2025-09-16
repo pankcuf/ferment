@@ -9,7 +9,7 @@ use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::{CustomResolver, GenericResolver, ImportResolver, ScopeChain, ScopeResolver, ScopeSearchKey, TraitsResolver, TypeChain};
 use crate::kind::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, MixinKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, TypeModelKind};
 use crate::ext::{AsType, GenericBoundKey, RefineInScope, Split, ToPath, ToType, CrateBased, RefineMut};
-use crate::formatter::{format_global_context, scope_resolved_imports_dict};
+use crate::formatter::{format_all_imports_info, format_complex_obj, format_global_context};
 
 #[derive(Clone)]
 pub struct GlobalContext {
@@ -49,8 +49,8 @@ impl GlobalContext {
         self.imports.refine_imports(&self.scope_register);
         // Build fully qualified resolved imports without circular dependencies
         self.imports.build_fully_qualified_imports(&self.scope_register);
-        println!("################# REFINED IMPORTS ###############");
-        println!("{}", scope_resolved_imports_dict(&self.imports.resolved_imports).join("\n"));
+        println!("################# IMPORTS ###############");
+        println!("{}", format_complex_obj(format_all_imports_info(self)));
         println!("################# ############### ###############");
         // Collects scope items needed to refine
         let mut scope_updates = vec![];

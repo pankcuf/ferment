@@ -30,7 +30,7 @@ pub enum TypeModelKind {
 
     Unknown(TypeModel),
 
-    Imported(TypeModel, Path),
+    Imported(TypeModel, Path, Option<proc_macro2::Ident>),
 }
 
 impl TypeModeled for TypeModelKind {
@@ -189,7 +189,7 @@ impl<'a> AsType<'a> for TypeModelKind {
             TypeModelKind::Tuple(model) |
             TypeModelKind::Unknown(model) => model.as_type(),
             TypeModelKind::Trait(model) => model.as_type(),
-            TypeModelKind::Imported(model, _) => model.as_type(),
+            TypeModelKind::Imported(model, _, _) => model.as_type(),
             // TODO: Should we use import chunk here as well?
         }
     }
@@ -199,7 +199,7 @@ impl ToType for TypeModelKind {
     fn to_type(&self) -> Type {
         // TODO: check others like slices
         match self {
-            TypeModelKind::Imported(ty, import_path) => {
+            TypeModelKind::Imported(ty, import_path, _) => {
                 let ty = ty.as_type();
                 let path = import_path.popped();
                 match ty {
@@ -235,7 +235,7 @@ impl Debug for TypeModelKind {
                 format!("Bounds({gbc})"),
             TypeModelKind::Fn(ty) =>
                 format!("Fn({ty})"),
-            TypeModelKind::Imported(ty, import_path) =>
+            TypeModelKind::Imported(ty, import_path, _) =>
                 format!("Imported({ty}, {})", import_path.to_token_stream()),
             TypeModelKind::Array(ty) =>
                 format!("Array({ty})"),

@@ -2,7 +2,7 @@ extern crate cbindgen;
 extern crate ferment_sys;
 
 use std::process::Command;
-use ferment_sys::{Ferment, Lang, ObjC, XCodeConfig};
+use ferment_sys::Ferment;
 
 fn main() {
    const SELF_NAME: &str = "example_platform";

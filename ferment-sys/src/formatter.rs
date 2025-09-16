@@ -594,11 +594,68 @@ fn traits_impl_dict(dict: &HashMap<ScopeChain, Vec<Path>>) -> Vec<String> {
     iter
 }
 
-fn format_complex_obj(vec: Vec<Vec<String>>) -> String {
+pub fn format_complex_obj(vec: Vec<Vec<String>>) -> String {
     vec.into_iter()
         .flatten()
         .collect::<Vec<String>>()
         .join("\n\t")
+}
+
+pub fn format_all_imports_info(context: &GlobalContext) -> Vec<Vec<String>> {
+    let mut sections: Vec<Vec<String>> = Vec::new();
+    // Import Summary: always show if any imports exist
+    let has_any_imports = !context.imports.inner.is_empty() ||
+        !context.imports.globs.is_empty() ||
+        !context.imports.materialized_globs.is_empty();
+    if has_any_imports {
+        sections.push(vec!["-- import_summary:".to_string()]);
+        sections.push(format_import_resolution_summary(context));
+    }
+
+    // Direct Imports: include only if non-empty
+    // let imports = scope_imports_dict(&context.imports.inner);
+    // if !imports.is_empty() {
+    //     sections.push(vec!["-- kind:".to_string()]);
+    //     sections.push(imports);
+    // }
+    //
+    // // Glob Imports: include only if non-empty
+    // let globs = scope_globs_dict(&context.imports.globs);
+    // if !globs.is_empty() {
+    //     sections.push(vec!["-- glob_imports:".to_string()]);
+    //     sections.push(globs);
+    // }
+    //
+    // // Materialized Globs: include only if non-empty
+    // let materialized_globs = scope_materialized_globs_dict(&context.imports.materialized_globs);
+    // if !materialized_globs.is_empty() {
+    //     sections.push(vec!["-- materialized_globs:".to_string()]);
+    //     sections.push(materialized_globs);
+    // }
+
+    // Resolved Imports: include only if non-empty
+    let resolved_imports = scope_resolved_imports_dict(&context.imports.resolved_imports);
+    if !resolved_imports.is_empty() {
+        sections.push(vec!["-- resolved_imports:".to_string()]);
+        sections.push(resolved_imports);
+    }
+
+    // Import Conflicts: always show if any exist
+    // let conflicts = format_import_conflicts(context);
+    // if !conflicts.is_empty() {
+    //     sections.push(vec!["-- import_conflicts:".to_string()]);
+    //     sections.push(conflicts);
+    // }
+    //
+    // // Detailed Glob Resolution Chains: only if debug environment variable is set
+    // if std::env::var("FERMENT_DEBUG_IMPORTS").is_ok() {
+    //     let resolution_chains = format_glob_resolution_chains(context);
+    //     if !resolution_chains.is_empty() {
+    //         sections.push(vec!["-- glob_resolution_chains:".to_string()]);
+    //         sections.push(resolution_chains);
+    //     }
+    // }
+    sections
 }
 
 pub fn format_global_context(context: &GlobalContext) -> String {
@@ -626,59 +683,7 @@ pub fn format_global_context(context: &GlobalContext) -> String {
     if !custom_str.trim().is_empty() {
         sections.push(vec!["-- custom:".to_string(), custom_str]);
     }
-
-    // Import Summary: always show if any imports exist
-    let has_any_imports = !context.imports.inner.is_empty() ||
-                         !context.imports.globs.is_empty() ||
-                         !context.imports.materialized_globs.is_empty();
-    if has_any_imports {
-        sections.push(vec!["-- import_summary:".to_string()]);
-        sections.push(format_import_resolution_summary(context));
-    }
-
-    // Direct Imports: include only if non-empty
-    let imports = scope_imports_dict(&context.imports.inner);
-    if !imports.is_empty() {
-        sections.push(vec!["-- kind:".to_string()]);
-        sections.push(imports);
-    }
-
-    // Glob Imports: include only if non-empty
-    let globs = scope_globs_dict(&context.imports.globs);
-    if !globs.is_empty() {
-        sections.push(vec!["-- glob_imports:".to_string()]);
-        sections.push(globs);
-    }
-
-    // Materialized Globs: include only if non-empty
-    let materialized_globs = scope_materialized_globs_dict(&context.imports.materialized_globs);
-    if !materialized_globs.is_empty() {
-        sections.push(vec!["-- materialized_globs:".to_string()]);
-        sections.push(materialized_globs);
-    }
-
-    // Resolved Imports: include only if non-empty
-    let resolved_imports = scope_resolved_imports_dict(&context.imports.resolved_imports);
-    if !resolved_imports.is_empty() {
-        sections.push(vec!["-- resolved_imports:".to_string()]);
-        sections.push(resolved_imports);
-    }
-
-    // Import Conflicts: always show if any exist
-    let conflicts = format_import_conflicts(context);
-    if !conflicts.is_empty() {
-        sections.push(vec!["-- import_conflicts:".to_string()]);
-        sections.push(conflicts);
-    }
-
-    // Detailed Glob Resolution Chains: only if debug environment variable is set
-    if std::env::var("FERMENT_DEBUG_IMPORTS").is_ok() {
-        let resolution_chains = format_glob_resolution_chains(context);
-        if !resolution_chains.is_empty() {
-            sections.push(vec!["-- glob_resolution_chains:".to_string()]);
-            sections.push(resolution_chains);
-        }
-    }
+    sections.extend(format_all_imports_info(context));
 
     // Generics: include only if non-empty (and per-scope filtered above)
     let generics = scope_generics_dict(&context.generics.inner);

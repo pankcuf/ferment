@@ -11,9 +11,25 @@ use crate::ext::{Join, CRATE, SELF, SUPER};
 fn dbg_enabled() -> bool {
     std::env::var("FERMENT_DEBUG_IMPORT_REFINE").is_ok()
 }
-macro_rules! refine_import_dbg {
-    ($($arg:tt)*) => {
-        if dbg_enabled() { println!($($arg)*); }
+
+fn should_debug_import(import_or_scope: &str) -> bool {
+    if !dbg_enabled() { return false; }
+    // Debug any import containing Error types
+    import_or_scope.contains("DashCoreError") ||
+    import_or_scope.contains("ValueError") ||
+    import_or_scope.contains("Error3") ||
+    import_or_scope.contains("Error") ||
+    import_or_scope.contains("protocol_error")
+}
+
+macro_rules! filtered_import_dbg {
+    ($filter:expr, $($arg:tt)*) => {
+        if should_debug_import($filter) {
+            let formatted = format!($($arg)*);
+              if should_debug_import(&formatted) {
+                  println!($($arg)*);
+              }
+        }
     }
 }
 
@@ -82,10 +98,10 @@ impl ImportResolver {
     /// Legacy import resolution method - delegates to enhanced resolver
     pub fn maybe_import(&self, scope: &ScopeChain, key: &GenericBoundKey) -> Option<&Path> {
         // Use enhanced resolution if materialized globs are available, otherwise fall back to legacy
-        if !self.materialized_globs.is_empty() {
-            self.resolve_import_enhanced(scope, key)
-        } else {
+        if self.materialized_globs.is_empty() {
             self.maybe_import_legacy(scope, key)
+        } else {
+            self.resolve_import_enhanced(scope, key)
         }
     }
 
@@ -387,14 +403,29 @@ impl ImportResolver {
     }
 
     fn resolve_imports_for_scope(&mut self, scope: &ScopeChain, scope_resolver: &ScopeResolver) {
+        // Debug check
+        if dbg_enabled() {
+            println!("[DEBUG] resolve_imports_for_scope: {}", scope.fmt_short());
+        }
+
         //refine_import_dbg!("resolve_imports_for_scope: {}", scope.fmt_short());
         // 1. Process direct imports from inner map
         if let Some(scope_imports) = self.inner.get(scope) {
             for (alias_path, import_path) in scope_imports {
                 let resolved = self.determine_full_qualified_path(import_path, scope, scope_resolver);
-                if alias_path.to_token_stream().to_string().contains("ProtocolError") && scope.to_string().contains("emergency_action") {
-                    refine_import_dbg!("resolve_imports_for_scope.direct.insert {} as {} in {}", alias_path.to_token_stream(), resolved.to_token_stream(), scope.fmt_short());
+
+                // Simple debug for Error types
+                if dbg_enabled() {
+                    let alias_str = alias_path.to_token_stream().to_string();
+                    let import_str = import_path.to_token_stream().to_string();
+                    let resolved_str = resolved.to_token_stream().to_string();
+                    if alias_str.contains("Error") || import_str.contains("Error") || resolved_str.contains("Error") {
+                        println!("[IMPORT] Scope: {} | Alias: {} | Import: {} | Resolved: {}",
+                            scope.fmt_short(), alias_str, import_str, resolved_str);
+                    }
                 }
+
+                filtered_import_dbg!(alias_path.to_token_stream().to_string().as_str(), "resolve_imports_for_scope.direct.insert {} as {} in {}", alias_path.to_token_stream(), resolved.to_token_stream(), scope.fmt_short());
                 self.resolved_imports.insert((scope.clone(), alias_path.clone()), resolved);
             }
         }
@@ -403,9 +434,7 @@ impl ImportResolver {
         if let Some(glob_imports) = self.materialized_globs.get(scope).cloned() {
             for (alias_path, import_path) in glob_imports {
                 let resolved = self.determine_full_qualified_path(&import_path, scope, scope_resolver);
-                if alias_path.to_token_stream().to_string().contains("ProtocolError") && scope.to_string().contains("emergency_action") {
-                    refine_import_dbg!("resolve_imports_for_scope.glob.insert {} as {} in {}", alias_path.to_token_stream(), resolved.to_token_stream(), scope.fmt_short());
-                }
+                filtered_import_dbg!(alias_path.to_token_stream().to_string().as_str(), "resolve_imports_for_scope.glob.insert {} as {} in {}", alias_path.to_token_stream(), resolved.to_token_stream(), scope.fmt_short());
                 self.resolved_imports.insert((scope.clone(), alias_path), resolved);
             }
         }
@@ -417,33 +446,23 @@ impl ImportResolver {
         declaring_scope: &ScopeChain,
         scope_resolver: &ScopeResolver
     ) -> Path {
-        if import_path.to_token_stream().to_string().contains("ProtocolError") && declaring_scope.to_string().contains("emergency_action") {
-            refine_import_dbg!("determine_full_qualified_path: {} in {}", import_path.to_token_stream(), declaring_scope.fmt_short());
-        }
+        filtered_import_dbg!(import_path.to_token_stream().to_string().as_str(), "determine_full_qualified_path: {} in {}", import_path.to_token_stream(), declaring_scope.fmt_short());
         // Step 1: Normalize relative imports (crate/self/super)
         let normalized = self.normalize_import_path(import_path, declaring_scope);
-        if normalized.to_token_stream().to_string().contains("ProtocolError") && declaring_scope.to_string().contains("emergency_action") {
-            refine_import_dbg!("normalized: {}", normalized.to_token_stream());
-        }
+        filtered_import_dbg!(normalized.to_token_stream().to_string().as_str(), "normalized: {}", normalized.to_token_stream());
         // Step 2: Follow reexport chains to final destination
         let reexport_resolved = self.resolve_through_reexports(&normalized, scope_resolver);
-        if reexport_resolved.to_token_stream().to_string().contains("ProtocolError") && declaring_scope.to_string().contains("emergency_action") {
-            refine_import_dbg!("reexport_resolved: {}", reexport_resolved.to_token_stream());
-        }
+        filtered_import_dbg!(reexport_resolved.to_token_stream().to_string().as_str(), "reexport_resolved: {}", reexport_resolved.to_token_stream());
         // Step 3: Validate against scope registry
         let validated = self.validate_against_scope_registry(&reexport_resolved, scope_resolver);
-        if validated.to_token_stream().to_string().contains("ProtocolError") && declaring_scope.to_string().contains("emergency_action") {
-            refine_import_dbg!("validated: {}", validated.to_token_stream());
-        }
+        filtered_import_dbg!(validated.to_token_stream().to_string().as_str(), "validated: {}", validated.to_token_stream());
         validated
     }
 
     /// Normalizes relative import paths to absolute paths
     pub fn normalize_import_path(&self, path: &Path, scope: &ScopeChain) -> Path {
         if path.segments.is_empty() {
-            if path.to_token_stream().to_string().contains("ProtocolError") && scope.to_string().contains("emergency_action") {
-                refine_import_dbg!("normalize_import_path:empty {} in {}", path.to_token_stream(), scope.fmt_short());
-            }
+            filtered_import_dbg!(path.to_token_stream().to_string().as_str(), "normalize_import_path:empty {} in {}", path.to_token_stream(), scope.fmt_short());
             return path.clone();
         }
 
@@ -453,9 +472,7 @@ impl ImportResolver {
                 // crate::foo::Bar -> actual_crate_name::foo::Bar
                 let mut normalized = path.clone();
                 normalized.segments.first_mut().unwrap().ident = scope.crate_ident_ref().clone();
-                if normalized.to_token_stream().to_string().contains("ProtocolError") && scope.to_string().contains("emergency_action") {
-                    refine_import_dbg!("normalize_import_path:crate {} in {}", normalized.to_token_stream(), scope.fmt_short());
-                }
+                filtered_import_dbg!(normalized.to_token_stream().to_string().as_str(), "normalize_import_path:crate {} in {}", normalized.to_token_stream(), scope.fmt_short());
                 normalized
             },
             SELF => {
@@ -463,9 +480,7 @@ impl ImportResolver {
                 let tail: Vec<_> = path.segments.iter().skip(1).cloned().collect();
                 let mut segments = scope.self_path_ref().segments.clone();
                 segments.extend(tail);
-                if segments.to_token_stream().to_string().contains("ProtocolError") && scope.to_string().contains("emergency_action") {
-                    refine_import_dbg!("normalize_import_path:self {} in {}", segments.to_token_stream(), scope.fmt_short());
-                }
+                filtered_import_dbg!(segments.to_token_stream().to_string().as_str(), "normalize_import_path:self {} in {}", segments.to_token_stream(), scope.fmt_short());
                 Path { leading_colon: path.leading_colon, segments }
             },
             SUPER => {
@@ -483,16 +498,12 @@ impl ImportResolver {
 
                 let tail: Vec<_> = path.segments.iter().skip(super_count).cloned().collect();
                 base.segments.extend(tail);
-                if base.to_token_stream().to_string().contains("ProtocolError") && scope.to_string().contains("emergency_action") {
-                    refine_import_dbg!("normalize_import_path:super {} in {}", base.to_token_stream(), scope.fmt_short());
-                }
+                filtered_import_dbg!(base.to_token_stream().to_string().as_str(), "normalize_import_path:super {} in {}", base.to_token_stream(), scope.fmt_short());
                 base
             },
             _ => {
                 // Already absolute or external crate
-                if path.to_token_stream().to_string().contains("ProtocolError") && scope.to_string().contains("emergency_action") {
-                    refine_import_dbg!("normalize_import_path:abs_or_ext {} in {}", path.to_token_stream(), scope.fmt_short());
-                }
+                filtered_import_dbg!(path.to_token_stream().to_string().as_str(), "normalize_import_path:abs_or_ext {} in {}", path.to_token_stream(), scope.fmt_short());
                 path.clone()
             }
         }
@@ -501,16 +512,10 @@ impl ImportResolver {
     /// Resolves through reexport chains by finding actual item definitions
     /// This implements proper verification that items actually exist
     fn resolve_through_reexports(&self, path: &Path, scope_resolver: &ScopeResolver) -> Path {
-        // if path.to_token_stream().to_string().contains("ProtocolError") {
-        //     refine_import_dbg!("resolve_through_reexports: {}", path.to_token_stream());
-        // }
-
         // Single-segment path: search all scopes for actual item definition
         if path.segments.len() == 1 {
             if let Some(actual_definition) = self.find_verified_item_definition(path, scope_resolver) {
-                if actual_definition.to_token_stream().to_string().contains("ProtocolError") {
-                    refine_import_dbg!("resolve_through_reexports:found_verified_item: {}", actual_definition.to_token_stream());
-                }
+                filtered_import_dbg!(actual_definition.to_token_stream().to_string().as_str(), "resolve_through_reexports:found_verified_item: {}", actual_definition.to_token_stream());
                 return actual_definition;
             }
         }
@@ -527,9 +532,7 @@ impl ImportResolver {
                         if let crate::kind::ObjectKind::Item(_, _) = object_kind {
                             if let Some(item_segment) = type_ref.to_path().segments.last() {
                                 if item_segment.ident == *target_ident {
-                                    if path.to_token_stream().to_string().contains("ProtocolError") {
-                                        refine_import_dbg!("resolve_through_reexports:verified_exact_path: {}", path.to_token_stream());
-                                    }
+                                    filtered_import_dbg!(path.to_token_stream().to_string().as_str(), "resolve_through_reexports:verified_exact_path: {}", path.to_token_stream());
                                     return path.clone();
                                 }
                             }
@@ -552,9 +555,7 @@ impl ImportResolver {
                                     if item_segment.ident == *target_ident {
                                         // Found the target item in this scope
                                         let verified_path = scope_chain.self_path_ref().joined(&target_ident.to_path());
-                                        if verified_path.to_token_stream().to_string().contains("ProtocolError") {
-                                            refine_import_dbg!("resolve_through_reexports:verified_in_base: {}", verified_path.to_token_stream());
-                                        }
+                                        filtered_import_dbg!(verified_path.to_token_stream().to_string().as_str(), "resolve_through_reexports:verified_in_base: {}", verified_path.to_token_stream());
                                         return verified_path;
                                     }
                                 }
@@ -574,9 +575,7 @@ impl ImportResolver {
         }
 
         // Only return original path if we couldn't verify the item exists anywhere
-        if path.to_token_stream().to_string().contains("ProtocolError") {
-            refine_import_dbg!("resolve_through_reexports:unverified_fallback: {}", path.to_token_stream());
-        }
+        filtered_import_dbg!(path.to_token_stream().to_string().as_str(), "resolve_through_reexports:unverified_fallback: {}", path.to_token_stream());
         path.clone()
     }
 
@@ -699,9 +698,7 @@ impl ImportResolver {
             }
 
             if let Some(resolved) = self.resolve_import_path_fully(&import_path, &scope, scope_resolver) {
-                if alias.to_token_stream().to_string().contains("ProtocolError") && scope.to_string().contains("emergency_action") {
-                    refine_import_dbg!("resolve_direct_imports_pass.insert {} as {} in {}", alias.to_token_stream(), resolved.to_token_stream(), scope.fmt_short());
-                }
+                filtered_import_dbg!("resolve_direct_imports_pass.insert {} as {} in {}", "{} {} {}", alias.to_token_stream().to_string().as_str(), resolved.to_token_stream().to_string().as_str(), scope.fmt_short());
                 self.resolved_imports.insert(key, resolved);
             }
         }
@@ -725,9 +722,7 @@ impl ImportResolver {
             }
 
             if let Some(resolved) = self.resolve_import_path_fully(&import_path, &scope, scope_resolver) {
-                if alias.to_token_stream().to_string().contains("ProtocolError") && scope.to_string().contains("emergency_action") {
-                    refine_import_dbg!("resolve_glob_imports_pass.insert {} as {} in {}", alias.to_token_stream(), resolved.to_token_stream(), scope.fmt_short());
-                }
+                filtered_import_dbg!("resolve_glob_imports_pass.insert {} as {} in {}", "{} {} {}", alias.to_token_stream().to_string().as_str(), resolved.to_token_stream().to_string().as_str(), scope.fmt_short().as_str());
                 self.resolved_imports.insert(key, resolved);
             }
         }
@@ -736,16 +731,9 @@ impl ImportResolver {
     /// Resolve import path using only normalized paths and existing resolved imports
     fn resolve_import_path_fully(&self, import_path: &Path, declaring_scope: &ScopeChain, scope_resolver: &ScopeResolver) -> Option<Path> {
         // Use the corrected determine_full_qualified_path which includes proper reexport resolution
-        if import_path.to_token_stream().to_string().contains("ProtocolError") && declaring_scope.to_string().contains("emergency_action") {
-            refine_import_dbg!("resolve_import_path_fully: {} in {}", import_path.to_token_stream(), declaring_scope.fmt_short());
-        }
-
+        filtered_import_dbg!(import_path.to_token_stream().to_string().as_str(), "resolve_import_path_fully: {} in {}", import_path.to_token_stream().to_string().as_str(), declaring_scope.fmt_short().as_str());
         let resolved = self.determine_full_qualified_path(import_path, declaring_scope, scope_resolver);
-
-        if resolved.to_token_stream().to_string().contains("ProtocolError") && declaring_scope.to_string().contains("emergency_action") {
-            refine_import_dbg!("resolve_import_path_fully:final_result: {}", resolved.to_token_stream());
-        }
-
+        filtered_import_dbg!(resolved.to_token_stream().to_string().as_str(), "resolve_import_path_fully:final_result: {}", resolved.to_token_stream());
         Some(resolved)
     }
 
@@ -852,7 +840,35 @@ impl ImportResolver {
 
     /// Fast O(1) lookup during refinement
     pub fn resolve_import_in_scope(&self, scope: &ScopeChain, import_path: &Path) -> Option<&Path> {
-        self.resolved_imports.get(&(scope.clone(), import_path.clone()))
+        let debug_this = dbg_enabled() && (import_path.to_token_stream().to_string().contains("DashCoreError") ||
+                                          import_path.to_token_stream().to_string().contains("ValueError") ||
+                                          import_path.to_token_stream().to_string().contains("Error3"));
+        if debug_this {
+            println!("[TRACE] resolve_import_in_scope - Looking up {} in scope {}",
+                import_path.to_token_stream(), scope.fmt_short());
+            // Show all Error-related resolved_imports entries for debugging
+            for ((stored_scope, stored_path), resolved_path) in &self.resolved_imports {
+                let stored_str = stored_path.to_token_stream().to_string();
+                if stored_str.contains("DashCoreError") || stored_str.contains("ValueError") || stored_str.contains("Error3") {
+                    println!("[TRACE] resolved_imports entry: ({}, {}) -> {}",
+                        stored_scope.fmt_short(), stored_path.to_token_stream(), resolved_path.to_token_stream());
+                }
+            }
+        }
+
+        let result = self.resolved_imports.get(&(scope.clone(), import_path.clone()));
+
+        if debug_this {
+            if let Some(resolved) = result {
+                println!("[TRACE] resolve_import_in_scope - Found: {} -> {}",
+                    import_path.to_token_stream(), resolved.to_token_stream());
+            } else {
+                println!("[TRACE] resolve_import_in_scope - Not found: {} in scope {}",
+                    import_path.to_token_stream(), scope.fmt_short());
+            }
+        }
+
+        result
     }
 
     /// Resolve any absolute path by checking if it's available as an import in any scope
